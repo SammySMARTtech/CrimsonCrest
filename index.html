@@ -227,7 +227,7 @@ const WEAPONS={
  rimeaxe:{name:'RIME AXE',dmg:2,cd:.45,dur:.2,reach:34,hh:26,col:'#a0e8ff',snd:450,ability:'freeze',desc:'FREEZES SMALL FOES IN ICE'},
  glaive:{name:'STORM GLAIVE',dmg:1,cd:.3,dur:.18,reach:46,hh:18,col:'#ffe866',snd:1100,ability:'chain',desc:'LIGHTNING JUMPS TO NEARBY FOES'},
  fang:{name:'LEECH FANG',dmg:1,cd:.14,dur:.1,reach:26,hh:18,col:'#ff4070',snd:1250,ability:'leech',desc:'EVERY 4TH HIT MENDS A MASK'},
- bow:{name:'BONE BOW',dmg:2,cd:.36,dur:.14,reach:20,hh:12,col:'#e8e0c8',snd:900,ranged:true,desc:'SHOOTS PIERCING ARROWS'}};
+ bow:{name:'BONE BOW',dmg:2,cd:.36,dur:.14,reach:20,hh:12,col:'#e8e0c8',snd:900,ranged:true,desc:'ARROWS SEEK OUT FOES AND PIERCE'}};
 Object.assign(WEAPONS.greatsword,{desc:'BALANCED REACH AND SPEED'});Object.assign(WEAPONS.daggers,{desc:'VERY FAST, SHORT REACH'});
 Object.assign(WEAPONS.spear,{desc:'LONG THRUST, STRAIGHT AHEAD'});Object.assign(WEAPONS.hammer,{desc:'SLOW, BUT HITS FOR 3'});Object.assign(WEAPONS.scythe,{desc:'SWEEPS BEHIND YOU TOO'});
 const WP=()=>WEAPONS[P.wpn];
@@ -667,7 +667,7 @@ const GUIDE=[
   {n:'EYE-STONE 3',h:"IN KINGS' LANDING, AT THE BOTTOM OF THE DROWNED STAIR. DIVE DOWN FROM THE FAR POOL, OR GO EAST FROM THE SUNKEN PASSAGE. LAMP OIL WAITS BESIDE IT.",g:()=>!!flags.stone3},
   {n:'ESCAPE',h:'ONCE THE DOOR IS OPEN, CLIMB THE ANCIENT STAIR ABOVE THE HALL AND STEP INTO THE LIGHT. THAT ENDS THE GAME, SO FINISH ANYTHING ELSE FIRST.'}]},
  {ch:'WEAPONS',e:Object.keys(WEAPONS).map(k=>{const gi=GUARDS.findIndex(G=>G.drop===k),r=gi>=0?guardRoom(gi):null;
-  return{n:WEAPONS[k].name,h:(WEAPON_HOW[k]||`BEAT ${GUARDS[gi].name} IN ${RN(r)}, ${GUARD_WHERE[r]}.`)+' '+WEAPONS[k].desc+'.'+(WEAPONS[k].ranged?' HOLD UP OR DOWN TO AIM.':''),g:()=>owned.includes(k)}})},
+  return{n:WEAPONS[k].name,h:(WEAPON_HOW[k]||`BEAT ${GUARDS[gi].name} IN ${RN(r)}, ${GUARD_WHERE[r]}.`)+' '+WEAPONS[k].desc+'.'+(WEAPONS[k].ranged?' IT AIMS ITSELF AT THE NEAREST FOE IT CAN SEE.':''),g:()=>owned.includes(k)}})},
  {ch:'GUARDIANS',e:[...GUARDS.map((G,i)=>{const r=guardRoom(i);return{n:G.name,h:`IN ${RN(r)}, ${GUARD_WHERE[r]}. REWARD: ${G.drop?WEAPONS[G.drop].name:SIGILS[G.charm].name}.`,g:()=>!!beaten[r]}}),
   {n:'VARGRAX',h:'THE EMBER WYRM SLEEPS IN THE EMBER DEEP, AT THE BOTTOM OF THE EMBER CHIMNEY. IT FLIES, SWOOPS AND BREATHES FIRE. REWARD: THE EMBER HEART SIGIL.',g:()=>!!beaten.wyrm}]},
  {ch:'SIGILS',e:[{n:'WEARING SIGILS',h:'SIGILS ARE WORN ON THE MAP SCREEN, SIGILS TAB. YOU START WITH 3 SLOTS. TOBB SELLS A 4TH AND A 5TH.',g:()=>slots>=5},
@@ -831,10 +831,15 @@ function offerFish(){items.fish--;lis.state='listen';playScene('peace',()=>{flag
 function throwNeedle(){if(!arts.needle||P.silk<3)return;P.silk-=3;makeNoise(6);
   pShots.push({x:P.x+P.w/2,y:P.y+8,vx:P.face*380,life:.9});sfx(1200,.12,'sawtooth',-800,.04)}
 function updShots(dt){
-  for(const s of pShots){s.life-=dt;s.x+=s.vx*dt;s.y+=(s.vy||0)*dt;
-    const up=!s.vx,b=up?{x:s.x-2,y:s.y-5,w:4,h:10}:{x:s.x-5,y:s.y-2,w:10,h:4},dmg=s.dmg??2+(has('whetstone')?1:0),col=s.kind==='arrow'?'#e8e0c8':'#ff5070';
+  for(const s of pShots){
+    if(s.target){const t=s.target,alive=t===boss?!!boss&&boss.hp>0:t===lis?!!lis:!t.dead&&enemies.includes(t);
+      if(!alive||s.hit.has(t))s.target=pickTarget(s.x,s.y,Math.sign(s.vx)||1,'side',s.hit);// through one foe and on to the next
+      else{const cur=Math.atan2(s.vy,s.vx),da=clamp(((Math.atan2(t.y+t.h/2-s.y,t.x+t.w/2-s.x)-cur+Math.PI*3)%(Math.PI*2))-Math.PI,-14*dt,14*dt),sp=Math.hypot(s.vx,s.vy)||480;
+        s.vx=Math.cos(cur+da)*sp;s.vy=Math.sin(cur+da)*sp}}
+    s.life-=dt;s.x+=s.vx*dt;s.y+=(s.vy||0)*dt;
+    const up=!s.vx,b=s.kind==='arrow'?{x:s.x-4,y:s.y-4,w:8,h:8}:up?{x:s.x-2,y:s.y-5,w:4,h:10}:{x:s.x-5,y:s.y-2,w:10,h:4},dmg=s.dmg??2+(has('whetstone')?1:0),col=s.kind==='arrow'?'#e8e0c8':'#ff5070';
     const first=t=>{if(!s.pierce){s.life=0;return true}if(s.hit.has(t))return false;s.hit.add(t);if(s.kind==='arrow')P.silk=Math.min(SILK_MAX,P.silk+1);return true};
-    if(tileAt(Math.floor(s.x/T),Math.floor(s.y/T))===1){s.life=0;burst(s.x,s.y,col,5,80,1)}
+    if(!s.target&&tileAt(Math.floor(s.x/T),Math.floor(s.y/T))===1){s.life=0;burst(s.x,s.y,col,5,80,1)}// a locked-on arrow does not snag on rock
     for(const e of enemies)if(s.life>0&&!e.dead&&ov(b,e)&&first(e)){e.hp-=dmg;e.hurt=.12;impact(s.x,s.y,col);if(e.hp<=0)killEnemy(e)}
     if(s.life>0&&boss&&boss.hp>0&&boss.state!=='enter'&&ov(b,boss)&&first(boss)){boss.hp-=dmg;boss.hurt=.1;impact(s.x,s.y,col);if(boss.hp<=0)bossDown()}
     if(s.life>0&&lis&&ov(b,lis)&&first(lis)){impact(s.x,s.y,col);hitListener(dmg)}}
@@ -1275,9 +1280,21 @@ function weaponAbility(t,kind){// t is an enemy, the boss or the Listener
       n++;bolt(cx,cy,e.x+e.w/2,e.y+e.h/2);e.hp-=2;e.hurt=.12;if(e.hp<=0)killEnemy(e)}
     if(n)sfx(1800,.12,'sawtooth',-1400,.04)}
   if(ab==='leech'){P.leechN=(P.leechN||0)+1;if(P.leechN>=4){P.leechN=0;if(P.hp<P.maxHp){P.hp++;sfx(880,.15,'triangle',220,.05);burst(P.x+P.w/2,P.y+6,'#ff4070',10,90,1,0)}}}}
+// Bone Bow auto-aim: arrows lock onto the nearest foe in clear sight and steer into it
+function arrowTargets(){const t=enemies.filter(e=>!e.dead);if(boss&&boss.hp>0&&boss.state!=='enter'&&boss.state!=='dying'&&(boss.alpha??1)>.5)t.push(boss);if(lis)t.push(lis);return t}
+function clearShot(x0,y0,x1,y1){const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/6);for(let i=1;i<n;i++){const x=x0+(x1-x0)*i/n,y=y0+(y1-y0)*i/n;if(tileAt(Math.floor(x/T),Math.floor(y/T))===1)return false}return true}
+function pickTarget(x,y,face,dir,skip){let best=null,bs=1e9;
+  for(const t of arrowTargets()){if(skip&&skip.has(t))continue;const tx=t.x+t.w/2,ty=t.y+t.h/2,dx=tx-x,dy=ty-y,d=Math.hypot(dx,dy);
+    if(d>300||!clearShot(x,y,tx,ty))continue;
+    const behind=dir==='up'?dy>0:dir==='down'?dy<0:dx*face<0,s=d+(behind?160:0);// prefer foes in front (or above / below when you aim)
+    if(s<bs){bs=s;best=t}}
+  return best}
 function fireArrow(p,W){// the Bone Bow shoots instead of swinging
-  const d=p.atkDir,vx=d==='side'?p.face*480:0,vy=d==='up'?-480:d==='down'?480:0;
-  pShots.push({x:p.x+p.w/2+(d==='side'?p.face*8:0),y:p.y+(d==='side'?9:d==='up'?0:p.h),vx,vy,life:1.1,dmg:W.dmg,kind:'arrow',pierce:true,hit:new Set(),big:p.charged});
+  const d=p.atkDir,x=p.x+p.w/2+(d==='side'?p.face*8:0),y=p.y+(d==='side'?9:d==='up'?0:p.h),t=pickTarget(x,y,p.face,d);
+  let vx=d==='side'?p.face*480:0,vy=d==='up'?-480:d==='down'?480:0;
+  if(t){const a=Math.atan2(t.y+t.h/2-y,t.x+t.w/2-x);vx=Math.cos(a)*480;vy=Math.sin(a)*480;if(d==='side'&&Math.abs(vx)>40)p.face=Math.sign(vx);// turn to face it
+    parts.push({x:t.x+t.w/2,y:t.y+t.h/2,vx:0,vy:0,life:.25,max:.25,col:'#ff5070',ring:true,r0:16,r1:-9})}// lock-on ring
+  pShots.push({x,y,vx,vy,life:1.1,dmg:W.dmg,kind:'arrow',pierce:true,hit:new Set(),big:p.charged,target:t});
   sfx(p.charged?500:900,.1,'triangle',-500,.05);noise(.08,3000,800,.12)}
 function bossDown(){const b=boss;b.state='dying';b.st=0;sfx(80,1,'sawtooth',-50,.12);for(let i=0;i<30;i++)coins.push({x:b.x+b.w/2,y:b.y+b.h/2,vx:(Math.random()-.5)*300,vy:-100-Math.random()*200,t:0})}
 function hitBoss(){const b=boss;b.hp-=WS().dmg;b.hurt=.1;onHit(b);if(b.hp<=0)bossDown();else weaponAbility(b,'boss')}
