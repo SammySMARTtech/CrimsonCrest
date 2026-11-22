@@ -7,9 +7,10 @@
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #game{position:fixed;inset:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);display:grid;place-items:center}
 canvas{display:block;image-rendering:crisp-edges;image-rendering:pixelated;outline:none}
-.pad{position:fixed;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:grid;gap:6px;opacity:.85}
-.pad.l{left:calc(12px + env(safe-area-inset-left,0px));grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,42px)}
-.pad.r{right:calc(12px + env(safe-area-inset-right,0px));grid-template-columns:repeat(2,62px);grid-template-rows:repeat(2,50px) 34px 30px}
+#touch{--padx:max(16px,7vw);--pady:max(14px,5vh)}#touch.edge{--padx:12px;--pady:12px}
+.pad{position:fixed;bottom:calc(var(--pady) + env(safe-area-inset-bottom,0px));display:grid;gap:6px;opacity:.85}
+.pad.l{left:calc(var(--padx) + env(safe-area-inset-left,0px));grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,50px)}
+.pad.r{right:calc(var(--padx) + env(safe-area-inset-right,0px));grid-template-columns:repeat(2,64px);grid-template-rows:repeat(2,54px) 36px 32px}
 .pad button{font:10px Silkscreen,monospace;color:var(--ink);background:var(--btn);border:1px solid var(--line);border-radius:10px;touch-action:none;padding:0}
 .pad.sys{top:calc(8px + env(safe-area-inset-top,0px));bottom:auto;right:calc(12px + env(safe-area-inset-right,0px));grid-template-columns:repeat(3,48px);grid-template-rows:28px}
 .pad button.on{background:var(--crimson)}
@@ -67,6 +68,8 @@ html,body,canvas,.pad,.pad button{touch-action:none;-webkit-touch-callout:none;-
  *     - the Wanderer's Almanac: sold by Tobb, read on the map screen; 80 entries with found / not found checks
  *     - graphics: coloured bloom, light shafts, a hazy far layer, foreground silhouettes, deeper water with
  *       caustics, contact shadows, the knight's lantern, rising souls, colour grading per region
+ * v14 Touch buttons sit further in from the edges and are bigger (BUTTON SPOT in settings puts them back);
+ *     an optional TUTORIAL on the title screen: a training field with ten lessons that never touches your save
  * v12 Voices: ranks the device's voices (neural / natural first), near-natural pitch, sentence-by-sentence
  *     pacing with pauses, music ducks under speech, NARRATOR setting to pick the voice
  */
@@ -118,12 +121,12 @@ const DIFFS=[
  {name:'SQUIRE',desc:['WEAKER FOES','CHEAPER HEALING','LONGER MERCY'],enemyHp:.7,bossHp:.7,bossDmg:1,heal:4,mercy:1.6,bossSpeed:.85},
  {name:'KNIGHT',desc:['THE INTENDED','JOURNEY'],enemyHp:1,bossHp:1,bossDmg:1,heal:6,mercy:1.1,bossSpeed:1},
  {name:'CRIMSON',desc:['TOUGHER FOES','BOSSES HIT FOR 2','FASTER BOSSES'],enemyHp:1.4,bossHp:1.3,bossDmg:2,heal:6,mercy:1.1,bossSpeed:1.15}];
-let settings={diff:1,volume:8,music:6,voices:true,narrator:'',shake:true,touch:'auto'};
+let settings={diff:1,volume:8,music:6,voices:true,narrator:'',shake:true,touch:'auto',pads:'inward'};
 try{Object.assign(settings,JSON.parse(localStorage.getItem(SETKEY))||{})}catch(e){}
 function saveSettings(){try{localStorage.setItem(SETKEY,JSON.stringify(settings))}catch(e){}}
 const DIFF=()=>DIFFS[settings.diff]||DIFFS[1];
 const IS_TOUCH='ontouchstart' in window||matchMedia('(pointer:coarse)').matches;
-function applyTouch(){document.getElementById('touch').hidden=settings.touch==='off'||(settings.touch==='auto'&&!IS_TOUCH)}
+function applyTouch(){const t=document.getElementById('touch');t.hidden=settings.touch==='off'||(settings.touch==='auto'&&!IS_TOUCH);t.classList.toggle('edge',settings.pads==='edge')}
 
 /* ---------- input ---------- */
 const keys={},pressed={};
@@ -197,6 +200,7 @@ const KINDS={
  imp:{ai:'hop',look:'frog',hp:2,w:10,h:12,col:'#e8f4ff'},
  magma:{ai:'walk',look:'bug',hp:5,w:18,h:10,sp:22,col:'#d04a1a'},
  fireimp:{ai:'fly',look:'ghost',hp:2,w:10,h:12,sp:60,col:'#ff9a3a'},
+ dummy:{ai:'walk',look:'dummy',hp:3,w:12,h:22,col:'#c8a060'},
  inkling:{ai:'hop',look:'ink',hp:3,w:12,h:10,col:'#3a3a6a'},
  tome:{ai:'shoot',look:'tome',hp:4,w:14,h:12,col:'#7a3a2a',shot:'#7070d0'},
  page:{ai:'fly',look:'page',hp:1,w:10,h:8,sp:65,col:'#e8dcc0'},
@@ -287,6 +291,7 @@ const ROOMS={
  chimney:{name:'THE CHIMNEY',reg:'throat',x:4,y:2,w:1,h:2,req:'double',gate:true},
  throat:{name:'WHISPERING THROAT',reg:'throat',x:3,y:1,w:3,h:1,bench:true,feature:'whisper',req:'double'},
  rime:{name:'COLD MOUTH',reg:'throat',x:6,y:1,w:2,h:1,guard:6,req:'double'},
+ training:{name:'TRAINING FIELD',reg:'surface',x:0,y:-30,w:3,h:1,hidden:true},// the tutorial; not on the map
  archive:{name:'THE INKWELL ARCHIVE',reg:'library',x:13,y:4,w:2,h:1},
  lshaft:{name:'THE TALL STACKS',reg:'library',x:15,y:2,w:1,h:3},
  reading:{name:'THE READING ROOM',reg:'library',x:13,y:2,w:2,h:1,bench:true},
@@ -696,7 +701,7 @@ const GUIDE=[
   {n:'FUNGAL CAPS',h:'IN THE FUNGAL GARDEN, BLUE CAPS MEND A MASK. PURPLE GILLS HURT YOU, AND THE WALLS START TO BREATHE.'},
   {n:'FALLING PLANKS',h:'IN THE TIMBER WARRENS AND ON THE BONE SHELF, THIN PLANKS GIVE WAY UNDER YOU. THEY GROW BACK.'},
   {n:'A BETTER ENDING',h:"CARRY MAREN'S JOURNAL OUT AND MAKE PEACE WITH THE LISTENER BEFORE YOU CLIMB THE ANCIENT STAIR. THE ENDING REMEMBERS BOTH."}]},
- {ch:'AREAS',e:[...new Set(Object.values(ROOMS).map(r=>r.reg))].map(k=>({n:REGIONS[k].name,h:AREA_HOW[k]||'',g:()=>Object.keys(ROOMS).some(r=>ROOMS[r].reg===k&&explored.has(r))}))}];
+ {ch:'AREAS',e:[...new Set(Object.values(ROOMS).filter(r=>!r.hidden).map(r=>r.reg))].map(k=>({n:REGIONS[k].name,h:AREA_HOW[k]||'',g:()=>Object.keys(ROOMS).some(r=>ROOMS[r].reg===k&&explored.has(r))}))}];
 const guideRows=()=>GUIDE.flatMap((c,ci)=>c.e.map((e,ei)=>({ci,ei,c,e})));
 function wrapInk(str,x,y,maxW,col,lh=11){ctx.font='8px Silkscreen, monospace';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=col;let line='';
   for(const wd of str.split(' ')){const t=line?line+' '+wd:wd;if(ctx.measureText(t).width>maxW&&line){ctx.fillText(line,x,y);y+=lh;line=wd}else line=t}
@@ -740,7 +745,7 @@ function nearObj(){
     const ox=o.x*T+(o.type==='bench'?12:8),dx=Math.abs(P.x+P.w/2-ox),dy=Math.abs(P.y+P.h-o.y*T);
     if(dy<20&&dx<bd){bd=dx;best=o}}
   return best}
-function rest(o){P.hp=P.maxHp;P.oil=P.maxOil;cp={room:roomId,x:o.x};say('YOU STRIKE FLINT AND STEEL. THE FIRE HOLDS.');
+function rest(o){if(tutorial)tutorial.rested=true;P.hp=P.maxHp;P.oil=P.maxOil;cp={room:roomId,x:o.x};say('YOU STRIKE FLINT AND STEEL. THE FIRE HOLDS.');
   sfx(440,.5,'triangle',220,.06);burst(o.x*T+12,o.y*T-6,'#ffb040',16,80,2,-60);saveGame()}
 function interact(o){
   switch(o.type){
@@ -886,9 +891,51 @@ function updMusic(){
     if(tr.drums){if(s%4===0)drum(t,true);if(s%2===1)drum(t,false)}
     music.step++;music.next+=sp}}
 
+/* ---------- the optional tutorial (TUTORIAL on the title screen): a training field outside Kel Varran ----------
+ * It never saves, never costs masks for a bad jump, and tells you the touch buttons or the keys, whichever you use. */
+let tutorial=null;
+const TK=k=>(document.getElementById('touch').hidden?{move:'THE ARROW KEYS (OR A AND D)',jump:'SPACE (OR Z)',dash:'C (OR SHIFT)',attack:'X (OR J)',heal:'Q (OR F)',map:'I',up:'UP (OR W)',down:'DOWN (OR S)'}
+  :{move:'THE LEFT AND RIGHT BUTTONS',jump:'JUMP',dash:'DASH',attack:'ATK',heal:'HEAL',map:'MAP',up:'UP',down:'DN'})[k];
+const TUT_STEPS=[
+ {t:'MOVE',d:()=>`WALK RIGHT WITH ${TK('move')}.`,x:11,done:()=>P.x>11*T},
+ {t:'JUMP',d:()=>`PRESS ${TK('jump')} TO JUMP THE LOW WALL. HOLD IT LONGER TO JUMP HIGHER.`,x:17,done:()=>P.x>17*T},
+ {t:'DOUBLE JUMP',d:()=>`RUN AT THE TALL WALL, JUMP, THEN PRESS ${TK('jump')} AGAIN IN THE AIR, BEFORE YOU TOUCH THE WALL.`,x:25,done:()=>P.x>25*T},
+ {t:'DASH',d:()=>`RUN AND JUMP, THEN PRESS ${TK('dash')} IN THE AIR TO DASH ACROSS THE GAP.`,x:38,done:()=>P.x>37*T&&P.onGround},
+ {t:'ATTACK',d:()=>`PRESS ${TK('attack')} TO HIT THE TRAINING DUMMY UNTIL IT BREAKS.`,x:44.5,done:()=>!enemies.some(e=>e.dummy)},
+ {t:'POGO',d:()=>`JUMP OVER THE SPIKES. IN THE AIR, HOLD ${TK('down')} AND PRESS ${TK('attack')} TO BOUNCE OFF THEM.`,x:51,done:()=>tutorial.pogo},
+ {t:'HEAL',d:()=>`HITS FILL THE SILK SPOOL AT THE TOP LEFT. IT IS FULL NOW: STAND STILL AND HOLD ${TK('heal')} TO MEND YOUR MASKS.`,start:()=>{P.hp=Math.max(1,P.maxHp-2);P.silk=SILK_MAX},done:()=>P.hp>=P.maxHp},
+ {t:'MAP',d:()=>`PRESS ${TK('map')} TO SEE THE MAP, YOUR GEAR AND THE GUIDE BOOK. CLOSE IT AGAIN TO GO ON.`,done:()=>tutorial.map&&!gear},
+ {t:'REST',d:()=>`WALK TO THE FIRE AND PRESS ${TK('up')} TO REST. RESTING MENDS YOU, REFILLS YOUR LANTERN AND SAVES.`,x:62.7,done:()=>tutorial.rested},
+ {t:'ALL DONE!',d:()=>`YOU ARE READY FOR THE HOLLOW. PRESS ${TK('jump')} TO GO BACK TO THE TITLE.`,done:()=>false}];
+function startTutorial(){
+  loadProgress({});flags.dug=true;cp={room:'training'};state='play';paused=false;P.silk=0;playTime=0;din=0;stopVoice();
+  tutorial={step:0,t:0,started:false,pogo:false,map:false,rested:false};
+  enterRoom('training');
+  const s=(x,y,v)=>{L.g[y*L.w+x]=v};
+  for(let y=10;y<12;y++)for(const x of[14,15])s(x,y,1);// a low wall
+  for(let y=7;y<12;y++)for(const x of[22,23])s(x,y,1);// a tall wall: too high for one jump
+  for(let x=29;x<=36;x++)for(let y=12;y<L.h;y++)s(x,y,y>=L.h-2?3:0);// a spiked gap
+  for(let x=50;x<=52;x++)s(x,12,3);// spikes to bounce on
+  L.objs=[{type:'bench',x:61,y:12,t:0}];enemies=[];coins=[];
+  const d=makeEnemy('dummy',44*T,12*T-22);d.dummy=true;enemies.push(d);
+  P.x=4*T;P.y=12*T-P.h;P.face=1;P.safe={x:P.x,y:P.y};cam.x=0;card=0;msgT=0}
+function exitTutorial(){tutorial=null;stopVoice();saved=loadSave();loadProgress({});state='title';openMenu('main')}
+function updTutorial(dt){const st=TUT_STEPS[tutorial.step];tutorial.t+=dt;
+  if(st.start&&!tutorial.started){tutorial.started=true;st.start()}
+  if(tutorial.step===TUT_STEPS.length-1){if(pressed.jump&&tutorial.t>1)exitTutorial();return}
+  if(tutorial.t>.4&&st.done()){tutorial.step++;tutorial.started=false;tutorial.t=0;sfx(880,.15,'triangle',440,.06);sfx(1320,.2,'triangle',660,.04);burst(P.x+P.w/2,P.y,'#ffe0a0',14,110,1,0)}}
+function drawTutorial(){const st=TUT_STEPS[tutorial.step],w=320,x=(W-w)/2,y=40,a=Math.min(1,tutorial.t*4);
+  ctx.globalAlpha=a;panel(x,y,w,58);text(`TUTORIAL  ${tutorial.step+1} / ${TUT_STEPS.length}`,x+10,y+6,8,'rgba(232,226,214,.5)');text(st.t,x+w-10,y+6,8,'#e0304a','right');
+  wrapText(st.d(),x+10,y+20,w-20,'#ffe0a0');
+  for(let i=0;i<TUT_STEPS.length;i++){ctx.fillStyle=i<tutorial.step?'#e0304a':i===tutorial.step?'#ffe0a0':'rgba(232,226,214,.2)';ctx.fillRect(x+10+i*((w-20)/TUT_STEPS.length),y+52,(w-20)/TUT_STEPS.length-2,2)}
+  ctx.globalAlpha=1}
+function drawTutorialMarker(){const st=TUT_STEPS[tutorial.step];if(st.x==null)return;// a bouncing arrow where to go next
+  const mx=st.x*T+8,my=(st.x>=21&&st.x<=24?5:9)*T-6+Math.sin(time*5)*3;glowProps.push([mx,my,30,'255,224,160']);
+  ctx.fillStyle='#0b0d16';tri(mx-6,my-1,mx+6,my-1,mx,my+8);ctx.fillStyle='#ffe0a0';tri(mx-4,my,mx+4,my,mx,my+6)}
+
 /* ---------- the map and gear screen (I) ---------- */
 const GEAR_TABS=['MAP','SIGILS','ITEMS','BOOK'];
-function openGear(){gear={tab:0,sel:0};sfx(520,.05,'square',0,.03)}
+function openGear(){if(tutorial)tutorial.map=true;gear={tab:0,sel:0};sfx(520,.05,'square',0,.03)}
 function gearList(){
   if(gear.tab===1)return sigils.map(k=>({k,name:SIGILS[k].name,desc:SIGILS[k].desc,on:has(k)}));
   if(gear.tab===2){const l=[];
@@ -924,9 +971,9 @@ function gearInput(){
     else if(it.use)drinkPotion(it.use)}
   if(pressed.pause||pressed.dash||pressed.gear)gear=null}
 function drawMap(x0,y0,w0,h0){
-  let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;for(const k in ROOMS){const r=ROOMS[k];mnx=Math.min(mnx,r.x);mny=Math.min(mny,r.y);mxx=Math.max(mxx,r.x+r.w);mxy=Math.max(mxy,r.y+r.h)}
+  let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;for(const k in ROOMS){const r=ROOMS[k];if(r.hidden)continue;mnx=Math.min(mnx,r.x);mny=Math.min(mny,r.y);mxx=Math.max(mxx,r.x+r.w);mxy=Math.max(mxy,r.y+r.h)}
   const cs=Math.floor(Math.min(w0/(mxx-mnx),h0/(mxy-mny))),ch=Math.floor(cs*.62),ox=x0+(w0-cs*(mxx-mnx))/2,oy=y0+(h0-ch*(mxy-mny))/2;
-  for(const k in ROOMS){if(!explored.has(k))continue;const r=ROOMS[k],rg=REGIONS[r.reg],x=ox+(r.x-mnx)*cs,y=oy+(r.y-mny)*ch,w=r.w*cs,h=r.h*ch;
+  for(const k in ROOMS){if(!explored.has(k)||ROOMS[k].hidden)continue;const r=ROOMS[k],rg=REGIONS[r.reg],x=ox+(r.x-mnx)*cs,y=oy+(r.y-mny)*ch,w=r.w*cs,h=r.h*ch;
     ctx.fillStyle=rg.ground;ctx.fillRect(x+1,y+1,w-2,h-2);ctx.fillStyle=rg.top;ctx.fillRect(x+1,y+1,w-2,1);ctx.fillStyle='rgba(232,226,214,.35)';
     ctx.fillRect(x+1,y+1,w-2,1);ctx.fillRect(x+1,y+h-2,w-2,1);ctx.fillRect(x+1,y+1,1,h-2);ctx.fillRect(x+w-2,y+1,1,h-2);
     if(r.bench){ctx.fillStyle='#e0304a';ctx.fillRect(x+3,y+h-5,4,2)}
@@ -1192,6 +1239,7 @@ const SKEY='crimson-crest-v1';
 function loadSave(){try{return JSON.parse(localStorage.getItem(SKEY))||{}}catch(e){return{}}}
 function saveGame(){
   if(state!=='play'&&state!=='dead')return;
+  if(tutorial)return;// the tutorial never touches your saved journey
   try{localStorage.setItem(SKEY,JSON.stringify({v:2,room:roomId,cp,explored:[...explored],flags,items,rosaries,owned,wpn:P.wpn,tiers,sigils,equipped,slots,arts,
     beaten,loot:lootTaken,deaths,playTime,oil:P.oil,maxOil:P.maxOil}))}catch(e){}}
 // a save from before the Hollow keeps its purse and weapons and wakes at the Landing
@@ -1299,6 +1347,7 @@ function fireArrow(p,W){// the Bone Bow shoots instead of swinging
 function bossDown(){const b=boss;b.state='dying';b.st=0;sfx(80,1,'sawtooth',-50,.12);for(let i=0;i<30;i++)coins.push({x:b.x+b.w/2,y:b.y+b.h/2,vx:(Math.random()-.5)*300,vy:-100-Math.random()*200,t:0})}
 function hitBoss(){const b=boss;b.hp-=WS().dmg;b.hurt=.1;onHit(b);if(b.hp<=0)bossDown();else weaponAbility(b,'boss')}
 function hurtPlayer(d,sx,hazard,fromBoss){const p=P;
+  if(tutorial&&hazard){p.x=p.safe.x;p.y=p.safe.y;p.vx=p.vy=0;p.dashT=0;sfx(200,.15,'square',-80,.04);say('NO HARM DONE. TRY AGAIN.',1.5);return}
   if(fromBoss)d=DIFF().bossDmg;
   if(p.inv<=0&&!hazard&&p.ironskin>0){p.ironskin--;p.inv=.6;impact(p.x+p.w/2,p.y+8,'#c8c8d0');sfx(1600,.1,'square',-800,.05);return}
   if(p.inv<=0){makeNoise(20);if(fromBoss&&boss){boss.calm=.7}// after a boss lands a hit it backs off for a moment
@@ -1439,7 +1488,7 @@ function playerAttackUpdate(p,dt){
     if(L.g[y*L.w+x]===4){L.g[y*L.w+x]=0;burst(x*T+8,y*T+8,'#e8e0ec',6,60,1)}// cobwebs part under the blade
   for(const q of projs)if(q.life>0&&ov(b,{x:q.x-q.r,y:q.y-q.r,w:q.r*2,h:q.r*2})){q.life=0;impact(q.x,q.y,'#ffd080');if(p.atkDir==='down')pogo()}
   if(p.atkDir==='down'&&!p.hitSet.has('hz')&&boxType(b,3)){
-    p.hitSet.add('hz');pogo();impact(p.x+p.w/2,p.y+p.h+8,WS().col);sfx(600,.06,'square',200,.04)}}
+    p.hitSet.add('hz');pogo();if(tutorial)tutorial.pogo=true;impact(p.x+p.w/2,p.y+p.h+8,WS().col);sfx(600,.06,'square',200,.04)}}
 function swingSparks(p){
   const g=slashGeom(p);if(g.pr>=.55)return;
   const cx=p.x+p.w/2,cy=p.y+p.h/2,W=WS();
@@ -1517,6 +1566,7 @@ function updEnemies(dt){
   for(const e of enemies){if(e.dead)continue;const K=KINDS[e.k];
     if(Math.abs(e.x-P.x)>W)continue;
     e.t+=dt;if(e.hurt>0)e.hurt-=dt;
+    if(e.dummy){e.kbT=0;e.vx=0;e.vy+=1200*dt;moveBody(e,dt);continue}// a training dummy just stands there
     if(e.burn>0){e.burn-=dt;e.btick-=dt;if(Math.random()<.5)parts.push({x:e.x+Math.random()*e.w,y:e.y+Math.random()*e.h*.6,vx:0,vy:-40,life:.3,max:.3,col:Math.random()<.5?'#ffd060':'#ff6a20',size:1,glow:true});
       if(e.btick<=0){e.btick=.6;e.hp--;e.hurt=.08;sfx(240,.06,'sawtooth',-120,.025);if(e.hp<=0){killEnemy(e);continue}}}
     if(e.frozen>0){e.frozen-=dt;if(K.ai!=='fly'&&e.state!=='hang'){e.vx=0;e.vy+=1200*dt;moveBody(e,dt)}continue}
@@ -1632,8 +1682,8 @@ let menu={screen:'main',sel:0,back:'main'},menuRects=[];
 const hasSave=()=>saved.v===2||saved.biome!==undefined;
 function openMenu(screen,back){menu={screen,sel:screen==='diff'?settings.diff:0,back:back||menu.screen};sfx(520,.05,'square',0,.03)}
 function menuItems(){
-  if(menu.screen==='main')return[hasSave()&&{id:'continue',label:'CONTINUE'},{id:'new',label:'NEW GAME'},{id:'settings',label:'SETTINGS'}].filter(Boolean);
-  if(menu.screen==='pause')return[{id:'resume',label:'RESUME'},{id:'gear',label:'MAP AND GEAR'},{id:'settings',label:'SETTINGS'},{id:'quit',label:'SAVE AND QUIT TO TITLE'}];
+  if(menu.screen==='main')return[hasSave()&&{id:'continue',label:'CONTINUE'},{id:'new',label:'NEW GAME'},{id:'tutorial',label:'TUTORIAL'},{id:'settings',label:'SETTINGS'}].filter(Boolean);
+  if(menu.screen==='pause')return[{id:'resume',label:'RESUME'},{id:'gear',label:'MAP AND GEAR'},{id:'settings',label:'SETTINGS'},{id:'quit',label:tutorial?'EXIT TUTORIAL':'SAVE AND QUIT TO TITLE'}];
   if(menu.screen==='settings')return[
     {id:'diff',label:'DIFFICULTY',val:DIFF().name},
     {id:'volume',label:'VOLUME',val:'bar',bar:'volume'},
@@ -1642,6 +1692,7 @@ function menuItems(){
     {id:'narrator',label:'NARRATOR',val:(settings.narrator||'BEST AVAILABLE').replace(/^(Microsoft|Google|Apple)\s+/i,'').replace(/\s*\(.*$/,'').toUpperCase().slice(0,18)},
     {id:'shake',label:'SCREEN SHAKE',val:settings.shake?'ON':'OFF'},
     {id:'touch',label:'TOUCH BUTTONS',val:settings.touch.toUpperCase()},
+    {id:'pads',label:'BUTTON SPOT',val:settings.pads.toUpperCase()},
     {id:'back',label:'BACK'}];
   return DIFFS.map((d,i)=>({id:'pick',i,label:d.name}))}
 function adjust(id,dir){
@@ -1654,9 +1705,11 @@ function adjust(id,dir){
     saveSettings();if(voiceList.length)speak('narrator','The map said the ruins of Kel Varran sat on solid granite.');return}
   else if(id==='shake')settings.shake=!settings.shake;
   else if(id==='touch'){const o=['auto','on','off'];settings.touch=o[(o.indexOf(settings.touch)+dir+3)%3];applyTouch()}
+  else if(id==='pads'){settings.pads=settings.pads==='edge'?'inward':'edge';applyTouch()}
   else return;
   saveSettings();sfx(660,.05,'square',0,.04)}
 function startGame(fresh){
+  tutorial=null;
   if(fresh){try{localStorage.removeItem(SKEY)}catch(e){}saved={}}
   const s=fresh?{}:migrateSave(saved);
   loadProgress(s);state='play';paused=false;P.silk=0;playTime=s.playTime||0;din=0;
@@ -1672,7 +1725,8 @@ function activate(it){
     case'back':openMenu(menu.back,menu.back==='pause'?'pause':'main');break;
     case'resume':paused=false;break;
     case'gear':paused=false;openGear();break;
-    case'quit':saveGame();saved=loadSave();paused=false;state='title';stopVoice();openMenu('main');break;
+    case'tutorial':startTutorial();sfx(330,.4,'triangle',330,.06);break;
+    case'quit':if(tutorial){paused=false;exitTutorial();break}saveGame();saved=loadSave();paused=false;state='title';stopVoice();openMenu('main');break;
     default:adjust(it.id,1)}}
 function menuBack(){
   if(menu.screen==='pause')paused=false;
@@ -1713,6 +1767,7 @@ function update(dt){
   if(state==='dead'){deadT-=dt;updParts(dt);if(deadT<=0){P.hp=P.maxHp;P.silk=0;P.oil=Math.max(P.oil,30);din=0;state='play';enterRoom(cp.room,{benchX:cp.x})}return}
   playTime+=dt;
   updPlayer(dt);if(state!=='play')return;
+  if(tutorial)updTutorial(dt);
   updEnemies(dt);
   const firstNew=projs.length;
   if(boss)(boss.G?updGuard:updBoss)(dt);
@@ -1907,6 +1962,8 @@ function drawEnemyBody(e,x,y){
      for(let r=0;r<h-3;r++){const hw=r<5?Math.max(1,Math.round((r+1)/5*(cx-2))):cx-2;ctx.fillStyle=c;ctx.fillRect(x+cx-hw,y+r,hw*2,1);ctx.fillStyle=lt;ctx.fillRect(x+cx-hw,y+r,Math.max(1,hw>>1),1)}
      ctx.fillStyle=glow?'#ffffff':'#2a1e4a';ctx.fillRect(x+cx-1,y+h/2-1,3,2);
      ctx.fillStyle=lt;for(let i=0;i<2;i++){const a=t*3+i*Math.PI;ctx.fillRect(x+cx+Math.round(Math.cos(a)*(cx+3)),y+h/2+Math.round(Math.sin(a)*3),2,2)}break}
+   case'dummy':{R('#6a4a2a',5,14,2,h-14);R('#4a3020',1,h-2,10,2);R(c,1,6,10,9);R(lt,2,6,8,1);R(dk,1,14,10,1);R(dk,0,8,1,5);R(dk,11,8,1,5);
+     R('#c0283f',3,8,6,5);R('#ffffff',4,9,4,3);R('#c0283f',5,10,2,1);R(c,3,0,6,6);R(lt,4,0,4,1);R(dk,3,5,6,1);R(dk,4,2,1,1);R(dk,7,2,1,1);break}
    case'ink':{const wob=Math.round(Math.sin(t*6)),air=e.onGround===false?1:0;
      blob(w/2,h/2+1+air,w/2-1,c);R(c,1,h-2,w-2,2);R(lt,3,2,3,2);R('#ffffff',3,2,1,1);
      R('#ffffff',w-7,3,2,3);R('#ffffff',w-4,3,2,3);R(ink,w-6,4,1,2);R(ink,w-3,4,1,2);
@@ -2037,6 +2094,7 @@ function drawWorld(){
   for(const s of pShots){if(s.kind==='arrow')continue;ctx.fillStyle='#ff5070';ctx.fillRect(Math.round(s.x)-6,Math.round(s.y)-1,12,2);ctx.fillStyle='#ffffff';ctx.fillRect(Math.round(s.x)+(s.vx>0?3:-6),Math.round(s.y)-1,3,2)}if(boss)(boss.G?drawGuard:drawDragon)();
   ctx.fillStyle='#f0d8a0';for(const c of coins){const by=c.rest?Math.round(Math.sin(time*3+c.x)*1.5):0;ctx.fillRect(Math.round(c.x)-1,Math.round(c.y)-1+by,3,3)}
   drawPlayer();
+  if(tutorial)drawTutorialMarker();
   for(const q of projs){ctx.save();ctx.globalAlpha=.3;ctx.fillStyle=q.col;circle(q.x,q.y,q.r*1.8);ctx.globalAlpha=1;circle(q.x,q.y,q.r);ctx.fillStyle='#fff6c0';circle(q.x,q.y,q.r*.4);ctx.restore()}
   for(const q of parts){let a=Math.min(1,q.life/q.max*2);if(q.kind==='firefly'||q.kind==='sparkle')a*=.5+.5*Math.sin(time*6+q.x);
     ctx.globalAlpha=q.ghost?a*.35:a;ctx.fillStyle=q.col;
@@ -2173,10 +2231,11 @@ function draw(){
     drawRays();drawBokeh();drawGrade();ctx.drawImage(vign,0,0);
     text('CRIMSON CREST',310,42,24,'#e0304a','center');text('THE HOLLOW BENEATH',310,74,8,'#e8e2d6','center');
     if(menu.screen==='main'){
-      drawMenuList(310,96,170,menuItems());
-      if(hasSave())text('RESTING AT '+(saved.v===2?ROOMS[(saved.cp||{}).room||'landing'].name:'THE LANDING'),310,146,8,'rgba(232,226,214,.55)','center')}
+      drawMenuList(310,90,170,menuItems());
+      if(hasSave())text('RESTING AT '+(saved.v===2?ROOMS[(saved.cp||{}).room||'landing'].name:'THE LANDING'),310,158,8,'rgba(232,226,214,.55)','center')}
     const C=[['MOVE','ARROWS / WASD'],['JUMP','SPACE / Z  (TWICE IN AIR)'],['ATTACK','X / J  (+UP, +DOWN TO POGO)'],['DASH','C / K / SHIFT  (HOLD TO SPRINT)'],['HEAL','HOLD Q / F'],['ITEMS','R: DRAUGHT  V: ART  E: SWAP'],['MAP','I    UP: TALK / REST / EXAMINE']];
-    if(menu.screen==='main')C.forEach(([a,b],i)=>{text(a,196,164+i*12,8,'#e0304a');text(b,250,164+i*12,8)});
+    if(menu.screen==='main'){if(document.getElementById('touch').hidden)C.forEach(([a,b],i)=>{text(a,196,172+i*12,8,'#e0304a');text(b,250,172+i*12,8)});
+      else text('NEW HERE? TRY THE TUTORIAL.',310,180,8,'#ffe0a0','center')}// keyboard keys mean nothing on a touchscreen
     text('NOW SHOWING: '+BIO.name.toUpperCase(),W-8,H-12,8,'rgba(232,226,214,.5)','right');drawMenuOverlay();return}
   drawBG();
   const sk=settings.shake?1:0,sx=(Math.random()-.5)*shake*sk,sy=(Math.random()-.5)*shake*sk;
@@ -2188,6 +2247,7 @@ function draw(){
   if(state!=='win')drawHUD();
   if(card>0){ctx.globalAlpha=cardAlpha(card,3.2);text(BIO.name.toUpperCase(),W/2,70,16,'#e8e2d6','center');text(BIO.sub.toUpperCase(),W/2,94,8,'#e0304a','center');ctx.globalAlpha=1}
   if(bossCard>0){ctx.globalAlpha=cardAlpha(bossCard,3);text(bossName,W/2,60,24,'#ff8a3a','center');text(bossTitle,W/2,92,8,'#ffd0a0','center');ctx.globalAlpha=1}
+  if(tutorial&&state==='play'&&!gear&&!shop)drawTutorial();
   if(msgT>0){ctx.globalAlpha=Math.min(1,msgT*2);text(msg,W/2,H-40,8,'#ffe0a0','center');ctx.globalAlpha=1}
   if(fadeIn>0){ctx.fillStyle=`rgba(0,0,0,${clamp(fadeIn/.8,0,1)})`;ctx.fillRect(0,0,W,H)}
   if(state==='dead'){const a=clamp((2.6-deadT)/1.2,0,.88);ctx.fillStyle=`rgba(5,4,8,${a})`;ctx.fillRect(0,0,W,H);ctx.globalAlpha=a;
@@ -2217,7 +2277,7 @@ function frame(now){
 // 3. wait for the pixel font so no text is ever drawn in a fallback face (fallback after 1.5 s, e.g. offline)
 const fontReady=document.fonts?Promise.race([document.fonts.load('8px Silkscreen'),new Promise(r=>setTimeout(r,1500))]):Promise.resolve();
 fontReady.catch(()=>{}).then(()=>{last=performance.now();requestAnimationFrame(frame)});
-window.__game={WEAPONS,GUIDE,KINDS,GUARDS,openShop,openGear,guideRows,get pShots(){return pShots},get beaten(){return beaten},get explored(){return explored},enterRoom,ROOMS,REGIONS,roomTemplate,get roomId(){return roomId},get flags(){return flags},get items(){return items},get lis(){return lis},get scene(){return scene},get shop(){return shop},get gear(){return gear},get sigils(){return sigils},get equipped(){return equipped},get cp(){return cp},get din(){return din},set din(v){din=v},get rosaries(){return rosaries},set rosaries(v){rosaries=v},get menu(){return menu},get settings(){return settings},get paused(){return paused},get owned(){return owned},P,get state(){return state},get L(){return L},get enemies(){return enemies},get boss(){return boss}};
+window.__game={startTutorial,get tutorial(){return tutorial},WEAPONS,GUIDE,KINDS,GUARDS,openShop,openGear,guideRows,get pShots(){return pShots},get beaten(){return beaten},get explored(){return explored},enterRoom,ROOMS,REGIONS,roomTemplate,get roomId(){return roomId},get flags(){return flags},get items(){return items},get lis(){return lis},get scene(){return scene},get shop(){return shop},get gear(){return gear},get sigils(){return sigils},get equipped(){return equipped},get cp(){return cp},get din(){return din},set din(v){din=v},get rosaries(){return rosaries},set rosaries(v){rosaries=v},get menu(){return menu},get settings(){return settings},get paused(){return paused},get owned(){return owned},P,get state(){return state},get L(){return L},get enemies(){return enemies},get boss(){return boss}};
 </script>
 
 <script>/* iPad: fast taps on the touch buttons were zooming the page. Block Safari's double-tap and pinch zoom; the game's own pointer events still fire. */
