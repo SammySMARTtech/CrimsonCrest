@@ -70,6 +70,10 @@ html,body,canvas,.pad,.pad button{touch-action:none;-webkit-touch-callout:none;-
  *       caustics, contact shadows, the knight's lantern, rising souls, colour grading per region
  * v14 Touch buttons sit further in from the edges and are bigger (BUTTON SPOT in settings puts them back);
  *     an optional TUTORIAL on the title screen: a training field with ten lessons that never touches your save
+ * v15 The Listener: cuter design, a boss fight in its nest that is all about sound, the Hushblade as its gift, and a
+ *     friend to pet afterwards; weapons change design when Honed and Runed; the map is dug up with the spike and a
+ *     mini map sits in the corner; the Listener's Burrow and the Pipeworks shortcuts; balance pass on weapons;
+ *     controller support, pause on leaving the app, a save crest, visible sound ripples, guardian banners
  * v12 Voices: ranks the device's voices (neural / natural first), near-natural pitch, sentence-by-sentence
  *     pacing with pauses, music ducks under speech, NARRATOR setting to pick the voice
  */
@@ -121,7 +125,7 @@ const DIFFS=[
  {name:'SQUIRE',desc:['WEAKER FOES','CHEAPER HEALING','LONGER MERCY'],enemyHp:.7,bossHp:.7,bossDmg:1,heal:4,mercy:1.6,bossSpeed:.85},
  {name:'KNIGHT',desc:['THE INTENDED','JOURNEY'],enemyHp:1,bossHp:1,bossDmg:1,heal:6,mercy:1.1,bossSpeed:1},
  {name:'CRIMSON',desc:['TOUGHER FOES','BOSSES HIT FOR 2','FASTER BOSSES'],enemyHp:1.4,bossHp:1.3,bossDmg:2,heal:6,mercy:1.1,bossSpeed:1.15}];
-let settings={diff:1,volume:8,music:6,voices:true,narrator:'',shake:true,touch:'auto',pads:'inward'};
+let settings={diff:1,volume:8,music:6,voices:true,narrator:'',shake:true,touch:'auto',pads:'inward',minimap:true};
 try{Object.assign(settings,JSON.parse(localStorage.getItem(SETKEY))||{})}catch(e){}
 function saveSettings(){try{localStorage.setItem(SETKEY,JSON.stringify(settings))}catch(e){}}
 const DIFF=()=>DIFFS[settings.diff]||DIFFS[1];
@@ -223,15 +227,16 @@ const GUARDS=[
  {name:'BRASS COLOSSUS',title:'THE FOUNDRY NEVER SLEEPS',k:'cog',s:4,hp:44,moves:['charge','shoot','leap','rain'],sp:270,drop:'glaive'}];
 const WEAPONS={
  greatsword:{name:'GREATSWORD',dmg:1,cd:.28,dur:.16,reach:36,hh:22,col:'#8cc4f0',snd:900},
- daggers:{name:'TWIN DAGGERS',dmg:1,cd:.12,dur:.1,reach:24,hh:18,col:'#a0ffc0',snd:1300},
- spear:{name:'LONG SPEAR',dmg:1,cd:.3,dur:.16,reach:54,hh:12,col:'#ffe090',thrust:true,snd:700},
+ daggers:{name:'TWIN DAGGERS',dmg:1,cd:.15,dur:.1,reach:24,hh:18,col:'#a0ffc0',snd:1300},
+ spear:{name:'LONG SPEAR',dmg:1,cd:.27,dur:.16,reach:54,hh:12,col:'#ffe090',thrust:true,snd:700},
  hammer:{name:'WAR HAMMER',dmg:3,cd:.55,dur:.22,reach:34,hh:28,col:'#ff9a40',heavy:true,snd:300},
  scythe:{name:'CRYSTAL SCYTHE',dmg:2,cd:.4,dur:.2,reach:40,hh:30,col:'#c090ff',sweep:true,snd:600},
  ember:{name:'EMBER BRAND',dmg:1,cd:.26,dur:.16,reach:36,hh:22,col:'#ff8a3a',snd:800,ability:'burn',desc:'SETS FOES ON FIRE'},
  rimeaxe:{name:'RIME AXE',dmg:2,cd:.45,dur:.2,reach:34,hh:26,col:'#a0e8ff',snd:450,ability:'freeze',desc:'FREEZES SMALL FOES IN ICE'},
  glaive:{name:'STORM GLAIVE',dmg:1,cd:.3,dur:.18,reach:46,hh:18,col:'#ffe866',snd:1100,ability:'chain',desc:'LIGHTNING JUMPS TO NEARBY FOES'},
- fang:{name:'LEECH FANG',dmg:1,cd:.14,dur:.1,reach:26,hh:18,col:'#ff4070',snd:1250,ability:'leech',desc:'EVERY 4TH HIT MENDS A MASK'},
- bow:{name:'BONE BOW',dmg:2,cd:.36,dur:.14,reach:20,hh:12,col:'#e8e0c8',snd:900,ranged:true,desc:'ARROWS SEEK OUT FOES AND PIERCE'}};
+ fang:{name:'LEECH FANG',dmg:1,cd:.17,dur:.1,reach:26,hh:18,col:'#ff4070',snd:1250,ability:'leech',desc:'EVERY 5TH HIT MENDS A MASK'},
+ bow:{name:'BONE BOW',dmg:1,cd:.3,dur:.14,reach:20,hh:12,col:'#e8e0c8',snd:900,ranged:true,desc:'ARROWS SEEK OUT FOES AND PIERCE'},
+ hush:{name:'HUSHBLADE',dmg:1,cd:.22,dur:.14,reach:38,hh:22,col:'#d8ccff',snd:1000,ability:'echo',desc:'SILENT. EACH HIT ECHOES INTO NEARBY FOES'}};
 Object.assign(WEAPONS.greatsword,{desc:'BALANCED REACH AND SPEED'});Object.assign(WEAPONS.daggers,{desc:'VERY FAST, SHORT REACH'});
 Object.assign(WEAPONS.spear,{desc:'LONG THRUST, STRAIGHT AHEAD'});Object.assign(WEAPONS.hammer,{desc:'SLOW, BUT HITS FOR 3'});Object.assign(WEAPONS.scythe,{desc:'SWEEPS BEHIND YOU TOO'});
 const WP=()=>WEAPONS[P.wpn];
@@ -291,6 +296,9 @@ const ROOMS={
  chimney:{name:'THE CHIMNEY',reg:'throat',x:4,y:2,w:1,h:2,req:'double',gate:true},
  throat:{name:'WHISPERING THROAT',reg:'throat',x:3,y:1,w:3,h:1,bench:true,feature:'whisper',req:'double'},
  rime:{name:'COLD MOUTH',reg:'throat',x:6,y:1,w:2,h:1,guard:6,req:'double'},
+ nest:{name:"THE LISTENER'S NEST",reg:'den',x:-2,y:-1,w:2,h:1,guard:'listener',req:'double',relic:'hush'},
+ burrow:{name:"THE LISTENER'S BURROW",reg:'bone',x:0,y:3,w:2,h:1,req:'double',gate:true},
+ pipes:{name:'THE PIPEWORKS',reg:'foundry',x:14,y:5,w:1,h:2},
  training:{name:'TRAINING FIELD',reg:'surface',x:0,y:-30,w:3,h:1,hidden:true},// the tutorial; not on the map
  archive:{name:'THE INKWELL ARCHIVE',reg:'library',x:13,y:4,w:2,h:1},
  lshaft:{name:'THE TALL STACKS',reg:'library',x:15,y:2,w:1,h:3},
@@ -309,7 +317,8 @@ const LINKS=[['thorn','warrens',4],['warrens','landing',4],['landing','gallery',
  ['watch','hall',-1],['den','watch',-1],['den','dendepth',0],['dendepth','shelf',0],['queen','shelf',2],['shelf','embershaft',-1],
  ['embershaft','wyrm',-1],['chimney','landing',4],['throat','chimney',4],['hall','throat',5],['throat','rime',1],
  ['bog','archive',4],['archive','lshaft',4],['reading','lshaft',2],['lshaft','scriptorium',2],
- ['kings','cogs',8],['cogs','boiler',8],['boiler','vents',7],['boiler','forge',9]];
+ ['kings','cogs',8],['cogs','boiler',8],['boiler','vents',7],['boiler','forge',9],
+ ['nest','den',-1],['shelf','burrow',0],['burrow','thorn',1],['archive','pipes',14],['pipes','vents',14]];
 function hashStr(s){let h=2166136261;for(const c of s)h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0}
 function doorsOf(id){
   const R=ROOMS[id],out=[];
@@ -494,8 +503,8 @@ function sealDoors(on,only){
 function enterRoom(id,how={}){
   const tpl=roomTemplate(id),R=ROOMS[id],prevReg=BIO;
   roomId=id;BIO=REGIONS[R.reg];
-  L=Object.assign({},tpl,{arenaX:0,arenaGy:FLOOR_ROW,g:tpl.g.slice(),gates:new Set(),crumbling:new Map(),regrow:[],bossDone:R.guard===undefined||!!beaten[id]});
-  L.objs=tpl.objs.filter(o=>!(o.type==='stone'&&flags['stone'+o.n])&&!(o.type==='relic'&&owned.includes(o.w))).map(o=>Object.assign({},o,{t:0}));
+  L=Object.assign({},tpl,{arenaX:0,arenaGy:FLOOR_ROW,g:tpl.g.slice(),gates:new Set(),crumbling:new Map(),regrow:[],bossDone:R.guard===undefined||!!beaten[id]||(id==='nest'&&!!flags.listenerSlain)});
+  L.objs=tpl.objs.filter(o=>!(o.type==='stone'&&flags['stone'+o.n])&&!(o.type==='relic'&&(owned.includes(o.w)||(o.w==='hush'&&!flags.listenerSlain)))).map(o=>Object.assign({},o,{t:0}));
   enemies=[];projs=[];coins=[];boss=null;lis=null;pShots=[];bossCard=0;
   parts=parts.filter(q=>!q.amb||prevReg===BIO);
   const spawnRng=rng(hashStr(id)*31+7);// seeded so a room always holds the same enemies
@@ -509,7 +518,9 @@ function enterRoom(id,how={}){
   const taken=lootTaken[id]||[];
   tpl.loot.forEach((c,i)=>{if(!taken.includes(i))coins.push({x:c.x,y:c.y,vx:0,vy:0,t:0,rest:true,lootId:i})});
   if(!flags.doorOpen)sealDoors(true,d=>d.eye);
-  if(BIO.listener&&!flags.peace&&!flags.listenerSlain)spawnListener();
+  if(BIO.listener&&!flags.peace&&!flags.listenerSlain&&id!=='nest'&&id!=='burrow')spawnListener();
+  if(flags.listenerFriend&&['nest','den','dendepth'].includes(id)){// your friend waits for you here
+    const s=tpl.spots.length?tpl.spots[Math.floor(tpl.spots.length/2)]:{x:Math.floor(L.w/2),y:FLOOR_ROW};L.objs.push({type:'pal',x:s.x,y:s.y,t:0,hop:0})}
   Object.assign(P,{vx:how.vx??0,vy:how.vy??0,dashT:0,atkT:0,healT:0});
   if(how.door){
     const d=L.doors.find(d=>d.to===how.door);
@@ -585,7 +596,7 @@ const NPCS={
   intro:['...A living knight. It has been an age since I heard footsteps.','I am the last smith of Kel Varran. My forge still remembers the heat.','Bring me rosaries, and I will wake the steel you carry.'],
   again:['The forge is warm. What shall we wake?'],
   stock:()=>owned.map(w=>{const t=tiers[w]||0;return{name:WEAPONS[w].name+(t<2?' > '+TIER_NAMES[t+1]:' (RUNED)'),
-    desc:t===0?'HONED: +1 DAMAGE AND A GOLD EDGE':t===1?'RUNED: +1 DAMAGE, +10% REACH, GLOWING RUNES':'FULLY AWAKENED',
+    desc:t===0?'HONED: +1 DAMAGE. A GOLD WINGED GUARD AND A CRIMSON TASSEL':t===1?'RUNED: +1 DAMAGE, +10% REACH. THE BLADE GLOWS WITH LIVING RUNES':'FULLY AWAKENED',
     price:t<2?TIER_COST[t]:0,can:()=>(tiers[w]||0)<2,sold:()=>(tiers[w]||0)>=2,buy:()=>{tiers[w]=(tiers[w]||0)+1;P.wpn=w},wpn:w}})},
  ysolde:{name:'YSOLDE THE HERMIT',voice:'ysolde',
   intro:['Shh. The garden is listening.','I am Ysolde. The spores taught me sigils, and tricks of silk.','For a price, I will teach them to you.'],
@@ -625,11 +636,11 @@ function drawShop(){
     text(it.name,134,y,8,sold?'rgba(232,226,214,.35)':sel?'#ffffff':'#c8c2b6');
     text(sold?'OWNED':it.price+'',450,y,8,sold?'rgba(232,226,214,.35)':rosaries>=it.price?'#f0d8a0':'#a05050','right')});
   const it=list[shop.sel];if(it){wrapText(it.desc,30,H-58,W-60,'#e8e2d6');
-    if(it.wpn){ctx.save();ctx.translate(70,200);ctx.scale(2,2);drawWeapon(it.wpn,0,0,-.5,1);weaponOverlay(it.wpn,0,0,-.5,1,Math.min(2,(tiers[it.wpn]||0)+1));ctx.restore()}}
+    if(it.wpn){ctx.save();ctx.translate(70,200);ctx.scale(2,2);drawWeapon(it.wpn,0,0,-.5,1,Math.min(2,(tiers[it.wpn]||0)+1));ctx.restore()}}
   if(shopMsg)text(shopMsg,W/2,H-34,8,'#ffe0a0','center');
   text('UP / DOWN   JUMP: BUY   ESC: LEAVE',W/2,H-24,8,'rgba(232,226,214,.5)','center')}
 // honed steel gets a gold edge, runed steel glows in its own colour
-const BLADE={greatsword:[2,25,1.5],daggers:[2,11,1],spear:[30,39,2.5],hammer:[15,26,6],scythe:[4,24,1.5],ember:[2,25,1.5],rimeaxe:[15,25,7],glaive:[27,41,2.5],fang:[5,16,2]};
+const BLADE={hush:[3,28,4],bow:[-1,11,12],greatsword:[2,25,1.5],daggers:[2,11,1],spear:[30,39,2.5],hammer:[15,26,6],scythe:[4,24,1.5],ember:[2,25,1.5],rimeaxe:[15,25,7],glaive:[27,41,2.5],fang:[5,16,2]};
 function weaponOverlay(kind,hx,hy,ang,face,tier){
   if(!tier||!BLADE[kind])return;const[b0,b1,hw]=BLADE[kind];
   ctx.save();ctx.translate(hx,hy);ctx.scale(face,1);ctx.rotate(ang);
@@ -646,18 +657,20 @@ const GUARD_WHERE={thorn:'FAR WEST, PAST THE TIMBER WARRENS',watch:'WEST OF THE 
 const AREA_HOW={timber:'WHERE YOU WAKE. THE LANDING SITS IN THE MIDDLE OF IT.',gallery:'EAST OF THE LANDING. TOBB KEEPS SHOP HERE.',
  drowned:'DOWN THE ROTTEN SHAFT BELOW THE WARRENS, THEN EAST. OR DIVE INTO THE WATER BELOW THE FAR POOL.',
  fungal:'UP THE ROOT SHAFT ABOVE THE FAR POOL. YOU NEED DOUBLE JUMP.',throat:'UP THE CHIMNEY ABOVE THE LANDING. YOU NEED DOUBLE JUMP.',
- hall:'WEST OF THE FUNGAL GARDEN, OR UP FROM THE WHISPERING THROAT.',den:"WEST OF THE HALL, PAST THE CAPTAIN'S WATCH.",
- bone:"DOWN THROUGH THE DEN DEPTHS, BELOW THE LISTENER'S DEN.",ember:'DOWN THE EMBER CHIMNEY, BELOW THE BONE SHELF.',
+ hall:'WEST OF THE FUNGAL GARDEN, OR UP FROM THE WHISPERING THROAT.',den:"WEST OF THE HALL, PAST THE CAPTAIN'S WATCH. ITS NEST IS FURTHER WEST.",
+ bone:"DOWN THROUGH THE DEN DEPTHS, OR CLIMB THE LISTENER'S BURROW UP FROM BEETLE HOLLOW (NEEDS DOUBLE JUMP).",ember:'DOWN THE EMBER CHIMNEY, BELOW THE BONE SHELF.',
  stair:'BEHIND THE SEALED DOOR IN THE HALL. THE WAY OUT.',
- library:'NEW! KEEP GOING EAST THROUGH THE MIRE THRONE ONCE THE BOG MOTHER FALLS.',foundry:"NEW! EAST OF KINGS' LANDING, AT THE BOTTOM OF THE DROWNED STAIR."};
+ library:'EAST THROUGH THE MIRE THRONE ONCE THE BOG MOTHER FALLS, OR UP THE PIPEWORKS FROM THE STEAM VENTS.',foundry:"EAST OF KINGS' LANDING, OR DOWN THE PIPEWORKS FROM THE INKWELL ARCHIVE."};
 const WEAPON_HOW={greatsword:'YOUR OWN BLADE. YOU CARRY IT FROM THE START.',
  ember:'ON A SHRINE IN THE EMBER CHIMNEY, BELOW THE BONE SHELF. TOUCH IT TO TAKE IT.',
  rimeaxe:'ON A SHRINE IN THE CHIMNEY, THE SHAFT ABOVE THE LANDING. YOU NEED DOUBLE JUMP.',
- fang:"ON A SHRINE IN THE DEN DEPTHS, BELOW THE LISTENER'S DEN. MOVE QUIETLY."};
+ fang:"ON A SHRINE IN THE DEN DEPTHS, BELOW THE LISTENER'S DEN. MOVE QUIETLY.",
+ hush:"THE LISTENER'S GIFT. BEAT IT IN ITS NEST, WEST OF THE LISTENER'S DEN. IF YOU SLEW IT, THE BLADE LIES IN THE NEST."};
 const guardRoom=i=>Object.keys(ROOMS).find(k=>ROOMS[k].guard===i);
 const GUIDE=[
  {ch:'FIRST STEPS',e:[
   {n:'DOUBLE JUMP AND CLIMB',h:'IN THE LANDING, WHERE YOU WAKE, STAND BY THE HEAP OF OLD TIMBER AND PRESS UP TO DIG. THE SPIKE AND CLOTH YOU FIND GIVE YOU DOUBLE JUMP, SPRINT (HOLD DASH) AND WALL CLIMB.',g:()=>!!flags.dug},
+  {n:'THE MAP',h:'IT IS WRAPPED AROUND THE SPIKE UNDER THE TIMBER. IT SHOWS EVERY ROOM YOU HAVE SEEN AND SKETCHES THE REST. A MINI MAP SITS AT THE TOP RIGHT (TURN IT OFF IN SETTINGS).',g:()=>!!flags.dug},
   {n:'FIRES',h:'PRESS UP AT A FIRE TO REST: IT MENDS EVERY MASK, REFILLS YOUR LANTERN AND SAVES. YOU WAKE AT THE LAST FIRE IF YOU FALL. FIRES ARE MARKED RED ON THE MAP.'},
   {n:'HEALING',h:'HITTING FOES FILLS THE SILK SPOOL AT THE TOP LEFT. WHEN IT GLOWS, HOLD HEAL WHILE STANDING ON THE GROUND TO MEND 2 MASKS.'},
   {n:'ROSARIES',h:'FOES DROP ROSARIES. MORE REST ON FLOATING LEDGES, AND THOSE NEVER COME BACK, SO EACH ONE COUNTS. THE ROSARY LURE SIGIL PULLS THEM IN FROM AFAR.'},
@@ -674,6 +687,7 @@ const GUIDE=[
  {ch:'WEAPONS',e:Object.keys(WEAPONS).map(k=>{const gi=GUARDS.findIndex(G=>G.drop===k),r=gi>=0?guardRoom(gi):null;
   return{n:WEAPONS[k].name,h:(WEAPON_HOW[k]||`BEAT ${GUARDS[gi].name} IN ${RN(r)}, ${GUARD_WHERE[r]}.`)+' '+WEAPONS[k].desc+'.'+(WEAPONS[k].ranged?' IT AIMS ITSELF AT THE NEAREST FOE IT CAN SEE.':''),g:()=>owned.includes(k)}})},
  {ch:'GUARDIANS',e:[...GUARDS.map((G,i)=>{const r=guardRoom(i);return{n:G.name,h:`IN ${RN(r)}, ${GUARD_WHERE[r]}. REWARD: ${G.drop?WEAPONS[G.drop].name:SIGILS[G.charm].name}.`,g:()=>!!beaten[r]}}),
+  {n:'THE LISTENER',h:"IN ITS NEST, WEST OF THE LISTENER'S DEN. IT IS BLIND AND POUNCES AT WHATEVER IT HEARS: STAY QUIET UNTIL IT LANDS, THEN STRIKE. REWARD: HUSHBLADE, AND A FRIEND.",g:()=>!!beaten.nest},
   {n:'VARGRAX',h:'THE EMBER WYRM SLEEPS IN THE EMBER DEEP, AT THE BOTTOM OF THE EMBER CHIMNEY. IT FLIES, SWOOPS AND BREATHES FIRE. REWARD: THE EMBER HEART SIGIL.',g:()=>!!beaten.wyrm}]},
  {ch:'SIGILS',e:[{n:'WEARING SIGILS',h:'SIGILS ARE WORN ON THE MAP SCREEN, SIGILS TAB. YOU START WITH 3 SLOTS. TOBB SELLS A 4TH AND A 5TH.',g:()=>slots>=5},
   ...Object.keys(SIGILS).map(k=>{const S=SIGILS[k],G=GUARDS.find(G=>G.charm===k);
@@ -695,9 +709,10 @@ const GUIDE=[
   {n:"THE WIND'S WHISPER",h:'IN THE WHISPERING THROAT, STAND STILL NEXT TO THE CRACK IN THE WALL FOR A FEW SECONDS, AND LISTEN.'},
   {n:'THE TALLY MARKS',h:"A WALL OF SCRATCHES IN THE WEEPING GALLERY. PRESS UP. READ MAREN'S JOURNAL, THEN LOOK AGAIN."},
   {n:'BLIND FISH',h:'PALE FISH SWIM IN THE POOLS OF THE WEEPING GALLERY, THE FAR POOL AND THE SUNKEN HALLS. TOUCH ONE TO CATCH IT. YOU CAN CARRY 3.',g:()=>items.fish>0||!!flags.peace},
-  {n:"THE LISTENER'S PEACE",h:'HOLD A BLIND FISH. WHILE THE LISTENER IS NOT HUNTING YOU, GO CLOSE AND PRESS UP. IT WILL NEVER HUNT YOU AGAIN, AND THE ENDING CHANGES.',g:()=>!!flags.peace},
+  {n:"THE LISTENER'S PEACE",h:'HOLD A BLIND FISH. WHILE THE LISTENER IS NOT HUNTING YOU, GO CLOSE AND PRESS UP. IT STOPS HUNTING YOU AND WAITS IN ITS NEST, WANTING TO PLAY.',g:()=>!!flags.peace},
+  {n:'A FRIEND IN THE DARK',h:'AFTER THE FIGHT IN ITS NEST, THE LISTENER WAITS IN THE DEN AS YOUR FRIEND. PRESS UP TO PET IT. PET IT THREE TIMES, OR FEED IT BLIND FISH, AND IT DIGS UP ROSARIES.',g:()=>!!flags.palGift},
   {n:'STAYING QUIET',h:'THE LISTENER HUNTS BY SOUND. SPRINTING, HARD LANDINGS AND FIGHTING ARE LOUD. STAND STILL TO MAKE IT LOSE YOU. THE QUIET STEP SIGIL HALVES YOUR NOISE.'},
-  {n:'SLAYING THE LISTENER',h:'IT CAN BE KILLED, BUT IT IS HUGE AND HITS FOR 2 MASKS. IT DROPS 40 ROSARIES, AND THEN THERE IS NO MAKING PEACE.',g:()=>!!flags.listenerSlain},
+  {n:'SLAYING THE LISTENER',h:'IT CAN BE KILLED, BUT IT IS HUGE AND HITS FOR 2 MASKS. IT DROPS 40 ROSARIES. THEN ITS NEST LIES EMPTY, WITH ITS BLADE LEFT BEHIND.',g:()=>!!flags.listenerSlain},
   {n:'FUNGAL CAPS',h:'IN THE FUNGAL GARDEN, BLUE CAPS MEND A MASK. PURPLE GILLS HURT YOU, AND THE WALLS START TO BREATHE.'},
   {n:'FALLING PLANKS',h:'IN THE TIMBER WARRENS AND ON THE BONE SHELF, THIN PLANKS GIVE WAY UNDER YOU. THEY GROW BACK.'},
   {n:'A BETTER ENDING',h:"CARRY MAREN'S JOURNAL OUT AND MAKE PEACE WITH THE LISTENER BEFORE YOU CLIMB THE ANCIENT STAIR. THE ENDING REMEMBERS BOTH."}]},
@@ -738,7 +753,7 @@ function drawBook(){
   text(`${pct}% FOUND   UP / DOWN: PAGE   E: NEXT CHAPTER`,W/2,H-34,8,'rgba(232,226,214,.55)','center')}
 
 /* ---------- things in rooms you can touch, read, dig or talk to ---------- */
-const PROMPT={bench:'REST',npc:'TALK',dig:'DIG',tally:'EXAMINE',journal:'READ',door:'EXAMINE',whisper:'LISTEN'};
+const PROMPT={pal:'PET',bench:'REST',npc:'TALK',dig:'DIG',tally:'EXAMINE',journal:'READ',door:'EXAMINE',whisper:'LISTEN'};
 function nearObj(){
   let best=null,bd=24;
   for(const o of L.objs){if(!PROMPT[o.type])continue;
@@ -752,13 +767,14 @@ function interact(o){
     case'bench':rest(o);break;
     case'npc':playScene(SCENES.npc(o.id),()=>{flags['met_'+o.id]=true;openShop(o.id)});break;
     case'dig':if(flags.dug){say('ONLY SPLINTERS NOW.');break}
-      playScene('dig',()=>{flags.dug=true;say('NEW: DOUBLE JUMP, SPRINT AND WALL CLIMB',4);sfx(660,.5,'triangle',330,.07);saveGame()});break;
+      playScene('dig',()=>{flags.dug=true;say('NEW: DOUBLE JUMP, SPRINT, WALL CLIMB, AND A MAP (I)',4.5);sfx(660,.5,'triangle',330,.07);saveGame()});break;
     case'tally':playScene('tally');break;
     case'journal':playScene('journal',()=>{items.journal=true;saveGame()});break;
     case'door':if(flags.doorOpen){say('THE WAY UP IS OPEN.');break}
       if(items.stones<3){say(`THREE EYE-SHAPED SOCKETS. ${items.stones} OF 3 FILLED.`,3);break}
       playScene('door',()=>{flags.doorOpen=true;sealDoors(false,d=>d.eye);saveGame()});break;
-    case'whisper':playScene('whisper');break}}
+    case'whisper':playScene('whisper');break;
+    case'pal':petPal(o);break}}
 function getRelic(w){if(!owned.includes(w))owned.push(w);P.wpn=w;const Wp=WEAPONS[w];say('OBTAINED '+Wp.name+'  -  '+Wp.desc,5);
   sfx(660,.6,'triangle',330,.07);burst(P.x+P.w/2,P.y+6,Wp.col,30,180,2,0);shake=4;saveGame()}
 function poolSpan(o){let a=o.x,b=o.x;while(L.g[(o.y-1)*L.w+a-1]===5)a--;while(L.g[(o.y-1)*L.w+b+1]===5)b++;o.x0=a;o.x1=b}
@@ -774,6 +790,7 @@ function updObjects(dt){
     if((o.type==='cap'||o.type==='toxic')&&!o.gone&&ov(P,{x:ox+2,y:oy-8,w:10,h:8})){o.gone=true;
       if(o.type==='cap'){P.hp=Math.min(P.maxHp,P.hp+1);say('A BLUE CAP. IT TASTES OF RAIN.');sfx(520,.2,'triangle',260,.05)}
       else{hurtPlayer(1,P.x);halluc=5;say('PURPLE GILLS. THE WALLS BEGIN TO BREATHE.')}}
+    if(o.type==='pal'&&o.hop>0)o.hop-=dt;
     if(o.type==='relic'&&!o.gone&&ov(P,{x:ox,y:oy-26,w:16,h:26})){o.gone=true;getRelic(o.w)}
     if(o.type==='whisper'){const near=Math.abs(P.x+P.w/2-(ox+8))<36&&Math.abs(P.vx)<5&&P.onGround;o.hold=near?(o.hold||0)+dt:0;
       if(o.hold>2.4&&!o.done){o.done=true;playScene('whisper')}}}}
@@ -798,6 +815,7 @@ function drawObjects(){
         ctx.fillStyle='#4a4652';ctx.fillRect(x-4,y-14,24,14);eyeSigil(x+8,y-7,6,'#8a8296',1);break}
       case'stone':if(!o.gone){ctx.fillStyle='#2a2630';ctx.fillRect(x+1,y-4,14,4);eyeStone(x+8,y-10+Math.sin(time*2)*1.5,4,time,o.n);glowProps.push([x+8,y-10,40,'160,220,255'])}break;
       case'exit':glow(x+8,y-24,60,'220,230,255',.35);ctx.fillStyle='#000';ctx.fillRect(x+2,y-34,12,34);ctx.fillStyle='rgba(220,230,255,.25)';ctx.fillRect(x+4,y-34,8,34);glowProps.push([x+8,y-20,80]);break;
+      case'pal':{const hop=o.hop>0?-Math.sin(o.hop/.35*Math.PI)*6:0;drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,o.t,P.x+P.w/2>x+8?1:-1,0,'calm'),x-9,y-22+hop);glowProps.push([x+8,y-12,34,'230,220,255'])}break;
       case'relic':if(!o.gone){const bob=Math.sin(time*2.4)*2,rgb=hexRGB(WEAPONS[o.w].col);ctx.fillStyle='#2a2630';ctx.fillRect(x+1,y-6,14,6);ctx.fillStyle='#4a4652';ctx.fillRect(x,y-8,16,2);ctx.fillStyle='#3a3644';ctx.fillRect(x+3,y-5,10,5);
         glow(x+8,y-24+bob,26,rgb,.3);ctx.save();ctx.translate(x+8,y-12+bob);drawWeapon(o.w,0,0,-1.57,1);ctx.restore();glowProps.push([x+8,y-24,50,rgb])}break;
       case'fish':if(!o.gone&&o.px){ctx.fillStyle='#c8d4dc';ctx.fillRect(Math.round(o.px)-3,Math.round(o.py)-1,6,3);ctx.fillRect(Math.round(o.px)+(Math.cos(o.t*.8)>0?3:-5),Math.round(o.py)-2,2,5)}break;
@@ -807,7 +825,9 @@ function drawObjects(){
   if(lis&&items.fish>0&&lis.state!=='hunt'&&Math.hypot(lis.x+lis.w/2-P.x,lis.y-P.y)<90)text('UP: OFFER A BLIND FISH',P.x+P.w/2,P.y-20,8,'#c8e0f0','center')}
 
 /* ---------- the Listener: eyeless, hunts by sound. Quiet down and it loses you; feed it and it lets you be ---------- */
-function makeNoise(n){if(BIO.listener)din=Math.min(100,din+n*(has('quietstep')?.5:1))}
+let lastRipple=0;
+function makeNoise(n){if(!BIO.listener)return;const m=(has('quietstep')?.5:1)*(P.wpn==='hush'?.25:1);din=Math.min(100,din+n*m);
+  if(n*m>=4&&time-lastRipple>.15&&state==='play'){lastRipple=time;parts.push({x:P.x+P.w/2,y:P.y+P.h*.6,vx:0,vy:0,life:.45,max:.45,col:'#c8c0ff',ring:true,r0:4,r1:10+n*m*1.6})}}
 function updNoise(p,dt){
   const still=Math.abs(p.vx)<12&&p.onGround&&p.atkT<=0;
   din=Math.max(0,din-dt*(still?30:9));
@@ -830,6 +850,62 @@ function updListener(dt){
 function hitListener(dmg){const l=lis;l.hp-=Math.max(1,Math.ceil(dmg/2));l.hurt=.12;l.state='hunt';l.tx=P.x;l.ty=P.y;
   if(l.hp<=0){flags.listenerSlain=true;burst(l.x+l.w/2,l.y+l.h/2,'#dcd6ca',40,220,3);for(let i=0;i<40;i++)coins.push({x:l.x+l.w/2,y:l.y,vx:(Math.random()-.5)*300,vy:-100-Math.random()*200,t:0});
     lis=null;say('THE LISTENER FALLS SILENT. FOREVER.',4);saveGame()}}
+/* ---------- the Listener's nest: a blind boss. It pounces at whatever it hears, so the fight is about being quiet ---------- */
+function spawnListenerBoss(){const hp=Math.round(64*DIFF().bossHp),gy=L.arenaGy*T;din=0;
+  boss={kind:'listener',name:'THE LISTENER',title:flags.peace?'IT WANTS TO PLAY':'IT HEARS EVERYTHING',x:P.x>L.w*T/2?5*T:(L.w-5)*T-56,y:gy-200,w:56,h:40,vx:0,vy:0,hp,max:hp,state:'enter',st:0,t:0,face:-1,hurt:0,alpha:1,heard:null,mood:'hunt'}}
+function updListenerBoss(dt){
+  const b=boss;b.t+=dt;b.st+=dt;if(b.hurt>0)b.hurt-=dt;if(b.calm>0)b.calm-=dt;
+  const ax=(L.arenaX+1)*T,ar=(L.w-1)*T,gy=L.arenaGy*T,cx=b.x+b.w/2,rage=b.hp<=b.max/2,sp=DIFF().bossSpeed;
+  const go=s=>{b.state=s;b.st=0;b.fired=false},faceTo=x=>{b.face=x>cx?1:-1};
+  if(din>6||b.hurt>.08)b.heard=P.x+P.w/2;// one swing, a dash or a hard landing is enough// anything loud, or a hit, tells it where you are
+  b.mood=['listen','sniff','dizzy','dying'].includes(b.state)?'calm':'hunt';
+  const land=()=>{shake=6;sfx(90,.3,'square',-40,.08);dust(cx-14,b.y+b.h);dust(cx+14,b.y+b.h);for(const d of[-1,1])projs.push({x:cx+d*b.w/2,y:gy-6,vx:d*(rage?230:180),vy:0,r:5,life:1.8,col:'#d8ccff'})};
+  switch(b.state){
+    case'enter':if(b.onGround){land();go('listen')}break;
+    case'listen':b.vx=approach(b.vx,0,900*dt);
+      if(b.st>(rage?.5:.8)/sp&&b.heard!=null){b.mark=clamp(b.heard,ax+30,ar-30);b.heard=null;faceTo(b.mark);go(rage&&Math.random()<.45?'burrow':'pounce')}
+      else if(b.st>2.4)go(Math.random()<.5?'howl':'sniff');break;
+    case'sniff':if(b.st<dt*2)b.mark=ax+40+Math.random()*(ar-ax-80);// it cannot find you: it pads around, nose down
+      faceTo(b.mark);b.vx=b.face*60*sp;if(Math.abs(b.mark-cx)<10||b.st>2.2||b.hitWall){b.vx=0;go('listen')}else if(b.heard!=null&&b.st>.3)go('listen');break;
+    case'pounce':if(b.st<.55){b.vx=0;if(Math.random()<.3)dust(cx,b.y+b.h)}
+      else if(!b.fired){b.fired=true;b.vy=-540;b.vx=clamp((b.mark-cx)/.9,-340,340)*sp;b.onGround=false;sfx(240,.25,'triangle',260,.06)}
+      else if(b.hitWall&&!b.onGround){b.vx=0;b.bonk=true}
+      else if(b.onGround&&b.st>.7){land();if(b.bonk){b.bonk=false;go('dizzy')}else go('listen')}break;
+    case'howl':if(b.st<.6)b.vx=0;
+      else if(!b.fired){b.fired=true;sfx(140,1,'sawtooth',90,.06);sfx(210,.9,'triangle',-60,.05);
+        for(let i=0;i<3;i++)parts.push({x:cx+b.face*20,y:b.y+6,vx:0,vy:0,life:.5+i*.25,max:.5+i*.25,col:'#d8ccff',ring:true,r0:6,r1:60+i*30});
+        for(const d of[-1,1])for(let k=0;k<(rage?2:1);k++)projs.push({x:cx,y:gy-6,vx:d*(160+k*90),vy:0,r:5,life:2.5,col:'#d8ccff'})}
+      if(b.st>1.3)go('listen');break;
+    case'burrow':// it dives under the floor and bursts up where it last heard you
+      if(b.st<.4){b.vx=0;b.alpha=1-b.st/.4;if(Math.random()<.6)dust(cx,b.y+b.h)}
+      else if(b.st<1.3){b.alpha=0;b.x+=(clamp(b.mark-b.w/2,ax,ar-b.w)-b.x)*Math.min(1,4*dt);if(Math.random()<.5)dust(b.x+b.w/2,gy)}
+      else if(!b.fired){b.fired=true;b.alpha=1;b.vy=-620;b.onGround=false;shake=7;sfx(70,.5,'sawtooth',-30,.1);burst(b.x+b.w/2,gy,'#8a8090',20,180,2)}
+      else if(b.onGround&&b.st>1.5){land();go('dizzy')}break;
+    case'dizzy':b.vx=approach(b.vx,0,900*dt);if(b.st>1.2)go('listen');break;
+    case'dying':b.vx=0;b.mood='calm';if(b.st>1.6){finishListenerFight();return}break}
+  if(b.state!=='burrow'||b.st<.4||b.st>=1.3){b.vy+=1500*dt;moveBody(b,dt)}
+  if(b.alpha>.5&&!['dizzy','dying'].includes(b.state)&&!(b.calm>0)&&ov(b,P))hurtPlayer(1,cx,false,true)}
+function drawListenerBoss(){const b=boss,gy=L.arenaGy*T;
+  if(b.state==='burrow'&&b.st>=.4&&b.st<1.3){ctx.fillStyle=`rgba(255,64,80,${.5+.3*Math.sin(time*16)})`;for(let i=-2;i<=2;i++)ctx.fillRect(b.mark+i*6-1,gy-2-(i&1)*2,3,2);return}// cracks where it will burst out
+  ctx.save();ctx.globalAlpha=b.alpha;
+  if(b.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(b.x+b.w/2,b.y+b.h+1,b.w/2,3,0,0,7);ctx.fill()}
+  drawOutlined((px,py)=>drawListenerShape(px+14,py+10,1,b.t,b.face,b.hurt,b.mood),b.x,b.y,2);ctx.restore();
+  const wind={pounce:.55,howl:.6,burrow:.4}[b.state];if(wind&&b.st<wind)text('!',b.x+b.w/2,b.y-40+Math.sin(time*20)*1.5,16,'#ff4050','center');
+  if(b.state==='pounce'&&b.mark!=null){ctx.fillStyle=`rgba(255,64,80,${.45+.3*Math.sin(time*14)})`;ctx.fillRect(b.mark-10,gy-2,20,2);ctx.fillRect(b.mark-1,gy-7,2,4)}
+  if(b.state==='dizzy')for(let i=0;i<3;i++){const a=time*5+i*2.1;ctx.fillStyle='#ffe080';ctx.fillRect(b.x+b.w/2+14+Math.cos(a)*12,b.y-30+Math.sin(a)*4,3,3)}
+  if(b.state==='listen'&&Math.sin(time*6)>0){ctx.strokeStyle='rgba(216,204,255,.55)';ctx.lineWidth=1;for(let i=0;i<2;i++){ctx.beginPath();ctx.arc(b.x+b.w/2+b.face*22,b.y-26,6+i*5,-1,1);ctx.stroke()}}}
+function finishListenerFight(){const b=boss;boss=null;L.bossDone=true;beaten.nest=1;sealDoors(false,d=>!d.eye);P.hp=P.maxHp;
+  playScene('yield',()=>{flags.listenerFriend=true;flags.peace=true;if(!owned.includes('hush')){owned.push('hush');P.wpn='hush'}
+    say('OBTAINED HUSHBLADE  -  '+WEAPONS.hush.desc,5);L.objs.push({type:'pal',x:clamp(Math.round((b.x+b.w/2)/T),8,L.w-9),y:L.arenaGy,t:0,hop:0});saveGame()})}
+// your friend: pet it, feed it fish, and it digs up rosaries for you
+function dropCoins(x,y,n){for(let i=0;i<n;i++)coins.push({x,y,vx:(Math.random()-.5)*220,vy:-120-Math.random()*160,t:0})}
+function petPal(o){o.hop=.35;sfx(300,.25,'triangle',120,.05);sfx(420,.2,'sine',-80,.04);
+  for(let i=0;i<5;i++)parts.push({x:o.x*T+8+(Math.random()-.5)*16,y:o.y*T-28,vx:(Math.random()-.5)*30,vy:-40-Math.random()*30,life:1,max:1,col:'#ff7090',heart:true});
+  flags.pets=(flags.pets||0)+1;
+  if(items.fish>0){items.fish--;say('IT CRUNCHES THE FISH HAPPILY, THEN DIGS UP SOME ROSARIES FOR YOU.',3);dropCoins(o.x*T+8,o.y*T-10,20)}
+  else if(flags.pets>=3&&!flags.palGift){flags.palGift=true;say('IT DIGS EXCITEDLY AND UNCOVERS A LITTLE HOARD OF ROSARIES!',3.5);dropCoins(o.x*T+8,o.y*T-10,50)}
+  else say(['IT LEANS INTO YOUR HAND AND HUMS.','ITS EARS GO FLOPPY. IT IS VERY HAPPY.','IT SNIFFS YOUR LANTERN, CURIOUS ABOUT THE WARMTH.','IT ROLLS OVER FOR BELLY RUBS.'][flags.pets%4],2.5);
+  saveGame()}
 function offerFish(){items.fish--;lis.state='listen';playScene('peace',()=>{flags.peace=true;lis=null;saveGame()})}
 
 /* ---------- silk needles (the Silk Needle art) ---------- */
@@ -973,7 +1049,8 @@ function gearInput(){
 function drawMap(x0,y0,w0,h0){
   let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;for(const k in ROOMS){const r=ROOMS[k];if(r.hidden)continue;mnx=Math.min(mnx,r.x);mny=Math.min(mny,r.y);mxx=Math.max(mxx,r.x+r.w);mxy=Math.max(mxy,r.y+r.h)}
   const cs=Math.floor(Math.min(w0/(mxx-mnx),h0/(mxy-mny))),ch=Math.floor(cs*.62),ox=x0+(w0-cs*(mxx-mnx))/2,oy=y0+(h0-ch*(mxy-mny))/2;
-  for(const k in ROOMS){if(!explored.has(k)||ROOMS[k].hidden)continue;const r=ROOMS[k],rg=REGIONS[r.reg],x=ox+(r.x-mnx)*cs,y=oy+(r.y-mny)*ch,w=r.w*cs,h=r.h*ch;
+  for(const k in ROOMS){if(ROOMS[k].hidden)continue;if(!explored.has(k)){const r=ROOMS[k];ctx.save();ctx.strokeStyle='rgba(232,226,214,.16)';ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(ox+(r.x-mnx)*cs+1.5,oy+(r.y-mny)*ch+1.5,r.w*cs-3,r.h*ch-3);ctx.restore();continue}// sketched, not yet seen
+    const r=ROOMS[k],rg=REGIONS[r.reg],x=ox+(r.x-mnx)*cs,y=oy+(r.y-mny)*ch,w=r.w*cs,h=r.h*ch;
     ctx.fillStyle=rg.ground;ctx.fillRect(x+1,y+1,w-2,h-2);ctx.fillStyle=rg.top;ctx.fillRect(x+1,y+1,w-2,1);ctx.fillStyle='rgba(232,226,214,.35)';
     ctx.fillRect(x+1,y+1,w-2,1);ctx.fillRect(x+1,y+h-2,w-2,1);ctx.fillRect(x+1,y+1,1,h-2);ctx.fillRect(x+w-2,y+1,1,h-2);
     if(r.bench){ctx.fillStyle='#e0304a';ctx.fillRect(x+3,y+h-5,4,2)}
@@ -986,7 +1063,8 @@ function drawGear(){
   GEAR_TABS.forEach((t,i)=>text(t,W/2+(i-1.5)*90,22,8,i===gear.tab?'#ffffff':'rgba(232,226,214,.45)','center'));
   ctx.fillStyle='#e0304a';ctx.fillRect(W/2+(gear.tab-1.5)*90-22,33,44,2);
   if(gear.tab===3){drawBook();text('LEFT / RIGHT: TAB   ESC: CLOSE',W/2,H-23,8,'rgba(232,226,214,.45)','center');return}
-  if(gear.tab===0){drawMap(24,42,W-48,H-92);text(ROOMS[roomId].name,W/2,H-44,8,'#e8e2d6','center');
+  if(gear.tab===0&&!flags.dug){text('YOU HAVE NO MAP YET.',W/2,96,8,'#e8e2d6','center');text('SOMETHING IS BURIED UNDER THE OLD TIMBER WHERE YOU WOKE.',W/2,114,8,'#ffe0a0','center')}
+  else if(gear.tab===0){drawMap(24,42,W-48,H-92);text(ROOMS[roomId].name,W/2,H-44,8,'#e8e2d6','center');
     text('RED: FIRE   GOLD: SOMEONE TO TALK TO   ORANGE: A GUARDIAN STILL WAITS',W/2,H-32,8,'rgba(232,226,214,.5)','center')}
   else{const list=gearList();
     if(gear.tab===1)text(`SLOTS ${equipped.length}/${slots}`,W-30,42,8,'#f0d8a0','right');
@@ -1089,7 +1167,7 @@ function gradient(a,b){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(
 function glow(x,y,r,rgb,a){ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(${rgb},${a})`);g.addColorStop(1,`rgba(${rgb},0)`);ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore()}
 function sceneKnight(x,y,s,fr,face=1,rot=0){
   ctx.save();ctx.translate(x+9*s,y+22*s);ctx.rotate(rot);ctx.translate(-9*s,-22*s);
-  ctx.save();ctx.scale(s,s);drawWeapon(P.wpn,face>0?12:6,15,-2.2,face);ctx.restore();
+  ctx.save();ctx.scale(s,s);drawWeapon(P.wpn,face>0?12:6,15,-2.2,face,tiers[P.wpn]||0);ctx.restore();
   ctx.drawImage(SPR[fr][face>0?0:1],0,0,18*s,22*s);ctx.restore()}
 function caveFrame(col,seed){// jagged rock framing the picture
   ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(0,0);for(let x=0;x<=W;x+=12)ctx.lineTo(x,30+(hash(x,seed)%26));ctx.lineTo(W,0);ctx.fill();
@@ -1101,18 +1179,26 @@ function eyeSigil(x,y,s,col,lw=2){// the closed eye of Kel Varran: a lowered lid
 function eyeStone(x,y,r,t,n){const c=['','#80e0ff','#f0e0b0','#70b0ff'][n]||'#c0f0ff';glow(x,y,r*4,'180,230,255',.35+.15*Math.sin(t*3));
   ctx.fillStyle='#14202c';ctx.beginPath();ctx.ellipse(x,y,r*1.3,r,0,0,7);ctx.fill();ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(x,y,r,r*.7,0,0,7);ctx.fill();
   ctx.fillStyle='#0b0d16';ctx.fillRect(x-r*.6,y-.5,r*1.2,1.2);ctx.fillStyle='#ffffff';ctx.fillRect(x-r*.4,y-r*.4,1.5,1.5)}
-function drawListenerShape(x,y,s,t,face=1,hurt=0){
+function drawListenerShape(x,y,s,t,face=1,hurt=0,mood='calm'){// mood 'hunt': ears up, tiny fangs; 'calm': happy closed eyes
   ctx.save();ctx.translate(x,y);ctx.scale(s*face,s);
-  const pale=hurt>0?'#ffffff':'#dcd6ca',shade='#a8a196',dark='#5a5650';
-  ctx.strokeStyle=shade;ctx.lineWidth=1.6;ctx.lineCap='round';
-  for(let i=0;i<4;i++){const bx=-12+i*8,ph=Math.sin(t*4+i*1.7)*3,kx=bx+(i<2?-5:5)+ph,ky=-11-Math.abs(ph),fx=bx+(i<2?-9:9)+ph*1.5;
-    ctx.beginPath();ctx.moveTo(bx,0);ctx.lineTo(kx,ky);ctx.lineTo(fx,12);ctx.stroke()}
-  ctx.fillStyle=pale;ctx.beginPath();ctx.ellipse(-1,-2,15,7,-.08,0,7);ctx.fill();
-  ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(-2,1,12,3,0,0,7);ctx.fill();
-  for(let i=0;i<5;i++){ctx.fillStyle=pale;ctx.beginPath();ctx.arc(-10+i*5,-8,1.6,0,7);ctx.fill()}
-  ctx.fillStyle=pale;ctx.beginPath();ctx.ellipse(16,-5,8,4.5,.25,0,7);ctx.fill();// eyeless head
-  ctx.strokeStyle=dark;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(14,-2);ctx.quadraticCurveTo(19,0,23,-3);ctx.stroke();
-  ctx.restore()}
+  const fur=hurt>0?'#ffffff':'#f2e9dc',shade=hurt>0?'#e8e8e8':'#d6c9b8',pink='#f4a8bc',ink='#3a3040',hunt=mood==='hunt',bob=Math.sin(t*(hunt?10:3))*(hunt?1.2:.8);
+  const wag=Math.sin(t*(hunt?14:5))*.5;ctx.save();ctx.translate(-12,-2);ctx.rotate(-.6+wag);// a fluffy tail that wags
+  ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(-5,0,7.5,4,0,0,7);ctx.fill();ctx.fillStyle=fur;ctx.beginPath();ctx.ellipse(-6,-.6,5.6,2.6,0,0,7);ctx.fill();ctx.restore();
+  ctx.fillStyle=shade;for(let i=0;i<4;i++){const st=Math.sin(t*(hunt?16:6)+i*1.6)*(hunt?2:1);ctx.beginPath();ctx.ellipse(-9+i*6+st*.5,7,2.7,3.2,0,0,7);ctx.fill()}// stubby paws
+  ctx.fillStyle=fur;ctx.beginPath();ctx.ellipse(0,1+bob*.3,14,8.5,0,0,7);ctx.fill();
+  ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(1,6+bob*.3,9,2.4,0,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.ellipse(-3,-4+bob*.3,6,2,-.2,0,7);ctx.fill();// soft sheen
+  const hx=11,hy=-4+bob;ctx.fillStyle=fur;ctx.beginPath();ctx.arc(hx,hy,8,0,7);ctx.fill();
+  const perk=hunt?0:.35,tw=Math.sin(t*2.3)*.12;// the ears: up when it hears you, droopy when it is happy
+  for(const[ex,ea]of[[hx-4,-.35-perk+tw],[hx+3,.15+perk*.5-tw]]){ctx.save();ctx.translate(ex,hy-5);ctx.rotate(ea);ctx.fillStyle=fur;ctx.beginPath();ctx.ellipse(0,-7,3.7,8.2,0,0,7);ctx.fill();ctx.fillStyle=pink;ctx.beginPath();ctx.ellipse(0,-6.5,2,5.8,0,0,7);ctx.fill();ctx.restore()}
+  ctx.strokeStyle=ink;ctx.lineWidth=1;ctx.lineCap='round';
+  if(hunt){ctx.beginPath();ctx.moveTo(hx-1,hy-2.4);ctx.lineTo(hx+2,hy-1.4);ctx.moveTo(hx+4,hy-1.4);ctx.lineTo(hx+7,hy-2.4);ctx.stroke()}
+  else{ctx.beginPath();ctx.arc(hx+.5,hy-.8,1.6,Math.PI*1.1,Math.PI*1.9);ctx.stroke();ctx.beginPath();ctx.arc(hx+5.5,hy-.8,1.6,Math.PI*1.1,Math.PI*1.9);ctx.stroke()}
+  ctx.fillStyle='rgba(244,130,155,.65)';ctx.beginPath();ctx.ellipse(hx-1.5,hy+2,1.9,1.1,0,0,7);ctx.fill();ctx.beginPath();ctx.ellipse(hx+7.6,hy+2,1.6,1,0,0,7);ctx.fill();
+  ctx.fillStyle=pink;ctx.beginPath();ctx.ellipse(hx+8.6,hy,1.5,1.1,0,0,7);ctx.fill();
+  if(hunt){ctx.fillStyle=ink;ctx.beginPath();ctx.ellipse(hx+5,hy+3.7,2.1,1.4,0,0,7);ctx.fill();ctx.fillStyle='#ffffff';ctx.fillRect(hx+3.6,hy+2.6,.9,1.1);ctx.fillRect(hx+5.6,hy+2.6,.9,1.1)}
+  else{ctx.beginPath();ctx.moveTo(hx+3,hy+3);ctx.quadraticCurveTo(hx+4,hy+4.2,hx+5,hy+3);ctx.quadraticCurveTo(hx+6,hy+4.2,hx+7,hy+3);ctx.stroke()}
+  ctx.lineCap='butt';ctx.restore()}
 const PAINT={
  field:t=>{gradient('#2a1e3a','#d07850');glow(360,150,90,'255,190,120',.5);
    ctx.fillStyle='#4a3050';for(let x=0;x<W;x+=40)ctx.fillRect(x,160-(hash(x,3)%30),40,120);
@@ -1169,7 +1255,7 @@ const PAINT={
    ctx.fillStyle='rgba(120,190,255,.12)';ctx.fillRect(0,40,W,230);for(let i=0;i<20;i++){ctx.fillStyle='rgba(200,230,255,.5)';ctx.fillRect(hash(i,2)%W,H-((t*30+hash(i,3))%H),2,2)}
    ctx.fillStyle='#5a4a30';ctx.fillRect(300,190,26,14);ctx.fillStyle='#7a6a40';ctx.fillRect(302,186,22,5);eyeStone(260,196,6,t,3)},
  listener:t=>{ctx.fillStyle='#050407';ctx.fillRect(0,0,W,H);caveFrame('#0e0d12',33);glow(150,170,80,'255,190,110',.35);sceneKnight(120,140,2,'idle',1);
-   const a=Math.min(1,t/2.5);ctx.save();ctx.globalAlpha=a;drawListenerShape(330-a*30,150,3.2,t,-1);ctx.restore()},
+   const a=Math.min(1,t/2.5);ctx.save();ctx.globalAlpha=a;drawListenerShape(330-a*30,150,3.2,t,-1,0,'hunt');ctx.restore()},
  feed:t=>{ctx.fillStyle='#050407';ctx.fillRect(0,0,W,H);caveFrame('#0e0d12',33);glow(200,170,110,'255,190,110',.35);sceneKnight(150,140,2,'idle',1);
    ctx.fillStyle='#c8d4dc';ctx.fillRect(215+Math.min(30,t*15),186,10,4);drawListenerShape(310-Math.min(20,t*8),150,3,t*.5,-1)},
  peace:t=>{ctx.fillStyle='#050407';ctx.fillRect(0,0,W,H);glow(160,170,140,'255,190,110',.3);
@@ -1184,18 +1270,29 @@ const PAINT={
    ctx.fillStyle='#0a0e18';ctx.fillRect(330,176,40,32);ctx.fillStyle='#020306';ctx.fillRect(342,188,14,20);sceneKnight(300,162,2,'idle',-1)},
  tally:t=>{ctx.fillStyle='#16201c';ctx.fillRect(0,0,W,H);glow(240,140,180,'255,190,110',.18);ctx.strokeStyle='rgba(200,210,190,.5)';ctx.lineWidth=1;
    for(let g=0;g<70;g++){const gx=30+(g%14)*31,gy=40+Math.floor(g/14)*34;for(let k=0;k<4;k++){ctx.beginPath();ctx.moveTo(gx+k*4,gy);ctx.lineTo(gx+k*4,gy+18);ctx.stroke()}ctx.beginPath();ctx.moveTo(gx-3,gy+16);ctx.lineTo(gx+16,gy+2);ctx.stroke()}},
+ nest:t=>{ctx.fillStyle='#07060a';ctx.fillRect(0,0,W,H);caveFrame('#100e16',57);glow(240,190,150,'200,190,255',.18);
+   ctx.fillStyle='#2a3a2a';ctx.beginPath();ctx.ellipse(240,205,110,22,0,0,7);ctx.fill();ctx.fillStyle='#3a4a30';ctx.beginPath();ctx.ellipse(240,200,95,15,0,0,7);ctx.fill();
+   for(let i=0;i<9;i++){ctx.fillStyle=['#8a2030','#5a4a3a','#c8b8a0'][i%3];ctx.fillRect(160+hash(i,3)%160,194+hash(i,4)%10,10,3)}
+   const wake=Math.min(1,Math.max(0,t-2.5)/1.2);drawListenerShape(240,182-wake*8,3.4,t*(wake?1:.3),-1,0,wake&&!flags.peace?'hunt':'calm');
+   if(!wake)for(let i=0;i<3;i++){const k=(t*.6+i*.33)%1;text('Z',275+k*30,130-k*40,8,`rgba(216,204,255,${(1-k).toFixed(2)})`)}},
+ yield:t=>{ctx.fillStyle='#07060a';ctx.fillRect(0,0,W,H);caveFrame('#100e16',57);glow(240,190,170,'255,200,220',.22);
+   ctx.fillStyle='#2a3a2a';ctx.beginPath();ctx.ellipse(240,212,110,20,0,0,7);ctx.fill();
+   const hop=Math.abs(Math.sin(t*4))*6;ctx.save();ctx.translate(220,176-hop);ctx.rotate(Math.sin(t*4)*.06);drawListenerShape(0,0,3.2,t*2.2,1,0,'calm');ctx.restore();// bouncing happily, tail going
+   for(let i=0;i<4;i++){const k=(t*.5+i*.25)%1,hx=190+i*26,hy=120-k*50;ctx.fillStyle=`rgba(255,112,144,${(1-k).toFixed(2)})`;ctx.fillRect(hx-3,hy,3,3);ctx.fillRect(hx+1,hy,3,3);ctx.fillRect(hx-3,hy+2,7,3);ctx.fillRect(hx-2,hy+5,5,1);ctx.fillRect(hx-1,hy+6,3,1)}
+   if(t>2.5){ctx.globalAlpha=Math.min(1,t-2.5);glow(330,200,40,'216,204,255',.4);ctx.save();ctx.translate(318,204);ctx.scale(2,2);drawWeapon('hush',0,0,-.3,1);ctx.restore();ctx.globalAlpha=1}
+   sceneKnight(380,166,2,'idle',-1)},
  library:t=>{gradient('#0a0c18','#232a48');
    for(let i=0;i<7;i++){const x=10+i*70,h=150+hash(i,4)%60;ctx.fillStyle='#141830';ctx.fillRect(x,230-h,52,h);
      for(let y=230-h+12;y<226;y+=14){ctx.fillStyle='#1e2440';ctx.fillRect(x+3,y,46,2);for(let k=0;k<14;k++)if(hash(k,y+i)%3){ctx.fillStyle=['#5a2a2a','#2a4a5a','#5a4a2a','#3a2a4a'][hash(k,y)%4];const bh=9-hash(y,k)%3;ctx.fillRect(x+4+k*3,y-bh,2,bh)}}}
    ctx.save();ctx.globalCompositeOperation='lighter';for(let i=0;i<3;i++){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(200,215,255,.18)');g.addColorStop(1,'rgba(200,215,255,0)');ctx.fillStyle=g;const x=120+i*110+Math.sin(t*.4+i)*6;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+20,0);ctx.lineTo(x+70,H);ctx.lineTo(x+30,H);ctx.fill()}ctx.restore();
    for(let i=0;i<14;i++){const y=(hash(i,2)%200+t*14*(1+i%3))%240,x=hash(i,3)%W+Math.sin(t+i)*10;ctx.fillStyle='#e8dcc0';ctx.fillRect(x,y,5,4);ctx.fillStyle='#8a7a60';ctx.fillRect(x+1,y+1,3,1)}
-   ctx.fillStyle='#0e1020';ctx.fillRect(0,230,W,40);sceneKnight(200,186,2,'idle',1)},
+   ctx.fillStyle='#0e1020';ctx.fillRect(0,194,W,80);sceneKnight(200,150,2,'idle',1)},
  foundry:t=>{gradient('#120a06','#4a2a14');glow(240,250,220,'255,140,60',.35);
    for(let i=0;i<5;i++){const x=40+i*100,y=80+hash(i,5)%60,R=30+hash(i,6)%30,a=t*.6*(i%2?1:-1);ctx.fillStyle=i%2?'#2a1a10':'#3a2414';ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();
      for(let k=0;k<10;k++){const an=a+k*Math.PI/5;ctx.save();ctx.translate(x+Math.cos(an)*R,y+Math.sin(an)*R);ctx.rotate(an);ctx.fillRect(-5,-5,10,10);ctx.restore()}ctx.fillStyle='#120a06';ctx.beginPath();ctx.arc(x,y,R*.3,0,7);ctx.fill()}
    ctx.fillStyle='#5a3a1e';ctx.fillRect(0,150,W,8);ctx.fillStyle='#7a5a2e';ctx.fillRect(0,150,W,2);
    for(let i=0;i<20;i++){const k=(t*.8+hash(i,1)%100/100)%1;ctx.fillStyle=`rgba(255,${180+hash(i,2)%60},90,${1-k})`;ctx.fillRect(hash(i,3)%W,240-k*160,2,2)}
-   ctx.fillStyle='#1a100a';ctx.fillRect(0,230,W,40);sceneKnight(200,186,2,'idle',1)},
+   ctx.fillStyle='#1a100a';ctx.fillRect(0,194,W,80);sceneKnight(200,150,2,'idle',1)},
  npc:id=>t=>{ctx.fillStyle='#0b0a10';ctx.fillRect(0,0,W,H);glow(240,150,160,id==='ysolde'?'100,220,255':'255,190,110',.3);caveFrame('#14121a',41);
    ctx.save();ctx.translate(200,80);ctx.scale(5,5);drawNPC(id,0,0,t);ctx.restore()}};
 
@@ -1208,7 +1305,7 @@ const SCENES={
   {paint:PAINT.fall,lines:[[N,'You remember the crack of rotten timber, a long scrape of stone against your back, and then... nothing.']]},
   {paint:PAINT.wake,lines:[[N,'Now you wake to the sound of dripping water. Your lantern lies beside you, its glass cracked, its flame still stubbornly alive.'],[N,'Forty feet above, a ragged circle of grey sky. Far too high to climb. Your left ankle throbs.']]},
   {paint:PAINT.shift,lines:[[N,'Somewhere in the dark ahead, something shifts. Pebbles skitter across stone. Then silence.'],[N,'You are alone. Probably.']]}],
- dig:()=>[{paint:PAINT.dig,lines:[[N,'The timbers are old beams, cut by human hands long ago. You dig beneath them.'],[N,'Your fingers close on cold iron: a rusted spike. And a scrap of cloth, stitched with a sigil. A closed eye.'],[N,'You bind your ankle tight with the cloth. It holds. With the spike, you can bite into stone and climb.']]}],
+ dig:()=>[{paint:PAINT.dig,lines:[[N,'The timbers are old beams, cut by human hands long ago. You dig beneath them.'],[N,'Your fingers close on cold iron: a rusted spike. And a scrap of cloth, stitched with a sigil. A closed eye.'],[N,'You bind your ankle tight with the cloth. It holds. With the spike, you can bite into stone and climb.'],[N,'Wrapped around the spike is a map of the Hollow, sketched in charcoal by an unsteady hand. Someone was here before you.']]}],
  tally:()=>[{paint:PAINT.tally,lines:items.journal?[[N,"Maren's marks. She counted days down here."],[N,'She stopped at two hundred and eleven.']]:[[N,'Scratch marks cover the wall in groups of five. Hundreds of them.'],[N,'Someone was counting.']]}],
  whisper:()=>[{paint:PAINT.throat,lines:[[N,'Wind moans through the stone in a way that sounds almost like words. You hold still, and listen.'],['whisper','...not up...'],['whisper','...down is out...']]}],
  hall:()=>[{paint:PAINT.hall,lines:[[N,'A vast chamber. Carved pillars rise into the dark, every one marked with the same sigil: a closed eye.'],[N,'Above the far stair, a sealed stone door. Three empty sockets, each shaped like an eye.']]}],
@@ -1220,28 +1317,33 @@ const SCENES={
  stone1:()=>[{paint:PAINT.stone1,lines:[[N,'Tangled in the roots of the great fungal column, something glints.'],[N,'An eye-stone, warm as a living thing. One sleeps where the dark grows its own light.']]}],
  stone2:()=>[{paint:PAINT.stone2,lines:[[N,'In an alcove across the gap, among the bones of everything that ever fell, the second eye-stone waits.']]}],
  stone3:()=>[{paint:PAINT.stone3,lines:[[N,'At the bottom of the drowned stair, in a pocket of trapped air, the third eye-stone rests.'],[N,'Beside it, an old oilskin bag. Lamp oil, still sealed. Your lantern will burn longer now.']]}],
- listener:()=>[{paint:PAINT.listener,lines:[[N,'Something enormous unfolds from the dark. Pale. Long-limbed. Eyeless.'],[N,'It turns its head toward the sound of your breathing. It hunts by sound.'],[N,'Stay still. Stay silent. Fighting it would be nearly hopeless.']]}],
+ listener:()=>[{paint:PAINT.listener,lines:[[N,'Something pale pads out of the dark. Round. Soft. Enormous ears. No eyes at all.'],[N,'It turns its head toward the sound of your breathing. It hunts by sound.'],[N,'Stay still. Stay silent. It may look soft, but it bites, and it never tires.']]}],
  peace:()=>[{paint:PAINT.feed,lines:[[N,'You set a blind fish down on the stone, and step back. Slowly.'],[N,"The Listener's head tilts. It takes the fish. For a long moment, it does not move."]]},
   {paint:PAINT.peace,lines:[[N,'Then it turns away. It will not hunt you again.']]}],
  door:()=>[{paint:PAINT.door,lines:[[N,'One by one, you press the eye-stones into their sockets. Each one opens.'],[N,'Stone grinds against stone. Beyond the door, a long stair climbs into the dark. Cold air flows up it.']]}],
  ending:()=>{const shots=[{paint:PAINT.stairs,lines:[[N,'You climb for what feels like hours. The stair ends at a crack in a hillside, hidden by roots.']]},
    {paint:PAINT.valley,lines:[[N,'You step out into a starlit valley. The air smells of thyme.']]}];
    if(items.journal)shots[1].lines.push([N,"Her story ends where yours begins. You'll make sure someone reads it."]);
-   if(flags.peace)shots.push({paint:PAINT.peace,lines:[[N,'At the very edge of the light, something pale follows you to the mouth of the cave.'],[N,'Then it turns back into the dark. Home.']]});
+   if(flags.listenerFriend)shots.push({paint:PAINT.peace,lines:[[N,'Your friend pads after you to the mouth of the cave, ears high.'],[N,'It will not come into the light. But it will be listening, if you ever come back.']]});
+   else if(flags.peace)shots.push({paint:PAINT.peace,lines:[[N,'At the very edge of the light, something pale follows you to the mouth of the cave.'],[N,'Then it turns back into the dark. Home.']]});
    return shots},
+ nest:()=>[{paint:PAINT.nest,lines:[[N,'A nest of soft moss and stolen cloth. In the middle, something pale is curled up asleep, its ears twitching.'],
+   ...(flags.peace?[[N,'It hears you. Its tail thumps the moss. It remembers the fish.'],[N,'It wants to play!']]:[[N,'It hears you. Slowly, it rises.']])]}],
+ yield:()=>[{paint:PAINT.yield,lines:[[N,'The Listener flops down, then bounces back up, tail thumping, making a soft huffing sound. It is laughing.'],
+   [N,'It noses something out from under the moss and pushes it toward you: a pale blade that makes no sound at all.'],[N,'You have a friend in the dark now.']]}],
  library:()=>[{paint:PAINT.library,lines:[[N,'Shelves taller than any tree climb into the dark. Every book is sealed with the same closed eye.'],[N,'Kel Varran wrote everything down. Something here still guards the last word.']]}],
  foundry:()=>[{paint:PAINT.foundry,lines:[[N,"Heat, and the slow grind of brass. The old king's machines are still turning, with no one left to tend them."],[N,'Somewhere below, something enormous turns with them.']]}],
  npc:id=>()=>[{paint:PAINT.npc(id),lines:NPCS[id][flags['met_'+id]?'again':'intro'].map(l=>[NPCS[id].voice,l])}]};
 
 
 /* ---------- state ---------- */
-const SKEY='crimson-crest-v1';
+const SKEY='crimson-crest-v1';let saveFlash=0;
 function loadSave(){try{return JSON.parse(localStorage.getItem(SKEY))||{}}catch(e){return{}}}
 function saveGame(){
   if(state!=='play'&&state!=='dead')return;
   if(tutorial)return;// the tutorial never touches your saved journey
   try{localStorage.setItem(SKEY,JSON.stringify({v:2,room:roomId,cp,explored:[...explored],flags,items,rosaries,owned,wpn:P.wpn,tiers,sigils,equipped,slots,arts,
-    beaten,loot:lootTaken,deaths,playTime,oil:P.oil,maxOil:P.maxOil}))}catch(e){}}
+    beaten,loot:lootTaken,deaths,playTime,oil:P.oil,maxOil:P.maxOil}));saveFlash=1.4}catch(e){}}
 // a save from before the Hollow keeps its purse and weapons and wakes at the Landing
 function migrateSave(s){return s.v===2?s:{rosaries:s.rosaries,owned:s.owned,wpn:s.wpn,playTime:s.playTime}}
 // 6. rosaries picked up since the last bench/realm/boss save survive closing or reloading the tab
@@ -1327,7 +1429,9 @@ function weaponAbility(t,kind){// t is an enemy, the boss or the Listener
     for(const e of enemies){if(n>=2)break;if(e===t||e.dead||Math.hypot(e.x+e.w/2-cx,e.y+e.h/2-cy)>110)continue;
       n++;bolt(cx,cy,e.x+e.w/2,e.y+e.h/2);e.hp-=2;e.hurt=.12;if(e.hp<=0)killEnemy(e)}
     if(n)sfx(1800,.12,'sawtooth',-1400,.04)}
-  if(ab==='leech'){P.leechN=(P.leechN||0)+1;if(P.leechN>=4){P.leechN=0;if(P.hp<P.maxHp){P.hp++;sfx(880,.15,'triangle',220,.05);burst(P.x+P.w/2,P.y+6,'#ff4070',10,90,1,0)}}}}
+  if(ab==='echo'){parts.push({x:cx,y:cy,vx:0,vy:0,life:.35,max:.35,col:'#d8ccff',ring:true,r0:6,r1:56});
+    for(const e of enemies){if(e===t||e.dead||Math.hypot(e.x+e.w/2-cx,e.y+e.h/2-cy)>64)continue;e.hp-=1;e.hurt=.12;if(e.hp<=0)killEnemy(e)}}
+  if(ab==='leech'){P.leechN=(P.leechN||0)+1;if(P.leechN>=5){P.leechN=0;if(P.hp<P.maxHp){P.hp++;sfx(880,.15,'triangle',220,.05);burst(P.x+P.w/2,P.y+6,'#ff4070',10,90,1,0)}}}}
 // Bone Bow auto-aim: arrows lock onto the nearest foe in clear sight and steer into it
 function arrowTargets(){const t=enemies.filter(e=>!e.dead);if(boss&&boss.hp>0&&boss.state!=='enter'&&boss.state!=='dying'&&(boss.alpha??1)>.5)t.push(boss);if(lis)t.push(lis);return t}
 function clearShot(x0,y0,x1,y1){const n=Math.ceil(Math.hypot(x1-x0,y1-y0)/6);for(let i=1;i<n;i++){const x=x0+(x1-x0)*i/n,y=y0+(y1-y0)*i/n;if(tileAt(Math.floor(x/T),Math.floor(y/T))===1)return false}return true}
@@ -1507,10 +1611,11 @@ function playerHazards(p){
 function playerTriggers(p){
   if(boss||L.bossDone||!L.arena||p.x<6*T||p.x>(L.w-6)*T)return;
   sealDoors(true);// the arena closes around the knight
-  if(ROOMS[roomId].guard==='dragon'){const hp=Math.round(60*DIFF().bossHp);
+  if(ROOMS[roomId].guard==='listener')spawnListenerBoss();
+  else if(ROOMS[roomId].guard==='dragon'){const hp=Math.round(60*DIFF().bossHp);
     boss={name:'VARGRAX',title:'THE EMBER WYRM',x:p.x>L.w*T/2?4*T:(L.w-8)*T,y:(L.arenaGy-12)*T-60,w:60,h:36,hp,max:hp,state:'enter',st:0,t:0,face:-1,hurt:0,mouth:0,shots:0,ft:0,last:''}}
   else spawnGuard();
-  bossName=boss.name;bossTitle=boss.title;bossCard=3;shake=8;sfx(80,.9,'sawtooth',-40,.12)}
+  bossName=boss.name;bossTitle=boss.title;bossCard=3;card=0;shake=8;sfx(80,.9,'sawtooth',-40,.12)}
 function crumbleCheck(p){// planks in the warrens and on the bone shelf give way under you, and grow back
   if(!BIO.crumble||!p.onGround)return;
   const y=Math.floor((p.y+p.h+1)/T);
@@ -1533,7 +1638,8 @@ function onEnterRoom(id){
   if(id==='hall'&&!flags.sawHall){flags.sawHall=true;playScene('hall')}
   else if(lis&&!flags.metListener){flags.metListener=true;playScene('listener')}
   else if(ROOMS[id].reg==='library'&&!flags.sawLibrary){flags.sawLibrary=true;playScene('library')}
-  else if(ROOMS[id].reg==='foundry'&&!flags.sawFoundry){flags.sawFoundry=true;playScene('foundry')}}
+  else if(ROOMS[id].reg==='foundry'&&!flags.sawFoundry){flags.sawFoundry=true;playScene('foundry')}
+  else if(id==='nest'&&!flags.sawNest&&!flags.listenerSlain&&!beaten.nest){flags.sawNest=true;playScene('nest')}}
 // C. weapon pose and lean ease by elapsed time here, so they look the same at 60 Hz and 144 Hz and freeze while paused
 function weaponTarget(p){
   const W=WS();
@@ -1693,6 +1799,7 @@ function menuItems(){
     {id:'shake',label:'SCREEN SHAKE',val:settings.shake?'ON':'OFF'},
     {id:'touch',label:'TOUCH BUTTONS',val:settings.touch.toUpperCase()},
     {id:'pads',label:'BUTTON SPOT',val:settings.pads.toUpperCase()},
+    {id:'minimap',label:'MINI MAP',val:settings.minimap?'ON':'OFF'},
     {id:'back',label:'BACK'}];
   return DIFFS.map((d,i)=>({id:'pick',i,label:d.name}))}
 function adjust(id,dir){
@@ -1705,6 +1812,7 @@ function adjust(id,dir){
     saveSettings();if(voiceList.length)speak('narrator','The map said the ruins of Kel Varran sat on solid granite.');return}
   else if(id==='shake')settings.shake=!settings.shake;
   else if(id==='touch'){const o=['auto','on','off'];settings.touch=o[(o.indexOf(settings.touch)+dir+3)%3];applyTouch()}
+  else if(id==='minimap')settings.minimap=!settings.minimap;
   else if(id==='pads'){settings.pads=settings.pads==='edge'?'inward':'edge';applyTouch()}
   else return;
   saveSettings();sfx(660,.05,'square',0,.04)}
@@ -1770,7 +1878,7 @@ function update(dt){
   if(tutorial)updTutorial(dt);
   updEnemies(dt);
   const firstNew=projs.length;
-  if(boss)(boss.G?updGuard:updBoss)(dt);
+  if(boss)(boss.G?updGuard:boss.kind==='listener'?updListenerBoss:updBoss)(dt);
   for(let i=firstNew;i<projs.length;i++)projs[i].boss=true;// boss shots use the boss damage of the difficulty
   if(boss&&boss.burn>0&&boss.hp>0&&boss.state!=='dying'){boss.burn-=dt;boss.btick-=dt;
     if(Math.random()<.6)parts.push({x:boss.x+Math.random()*boss.w,y:boss.y+Math.random()*boss.h*.6,vx:0,vy:-50,life:.35,max:.35,col:Math.random()<.5?'#ffd060':'#ff6a20',size:2,glow:true});
@@ -2012,14 +2120,16 @@ function drawDragon(){const b=boss,cx=b.x+b.w/2,cy=b.y+b.h/2,fl=Math.sin(b.t*9),
   poly([0,-8,10,-34-fl*14,-14,-40-fl*16,-26,-26-fl*8,-8,-4],body);ctx.fillStyle=dark;ctx.fillRect(-3,-30-fl*12,1,22);ctx.fillRect(-12,-28-fl*10,1,18);
   ctx.restore()}
 
-function drawSword(hx,hy,ang,face){ctx.save();ctx.translate(hx,hy);ctx.scale(face,1);ctx.rotate(ang);
-  ctx.fillStyle='#0b0d16';ctx.fillRect(-6,-2.5,28,5);ctx.fillRect(-1,-5,4,10);ctx.beginPath();ctx.moveTo(21,-2.5);ctx.lineTo(27,0);ctx.lineTo(21,2.5);ctx.fill();
+// Weapons are painted into a small canvas in their own space (hand at the origin, pointing along +x), so an upgrade
+// can trim and recolour only the weapon's pixels before it is rotated into the knight's hand.
+const WOX=40,WOY=32,WCVS={};// one canvas per zoom level, so a weapon drawn big (title, shop, scenes) stays sharp
+function weaponCanvas(sc){let c=WCVS[sc];if(!c){c=document.createElement('canvas');c.width=124*sc;c.height=64*sc;WCVS[sc]=c}return c}
+function weaponArt(kind){const O='#0b0d16';
+  if(kind==='greatsword'){  ctx.fillStyle='#0b0d16';ctx.fillRect(-6,-2.5,28,5);ctx.fillRect(-1,-5,4,10);ctx.beginPath();ctx.moveTo(21,-2.5);ctx.lineTo(27,0);ctx.lineTo(21,2.5);ctx.fill();
   ctx.fillStyle='#d8b060';ctx.fillRect(-5,-1,2,2);ctx.fillStyle='#5a2c1e';ctx.fillRect(-3,-1,3,2);
   ctx.fillStyle='#c8d4e4';ctx.fillRect(2,-1.5,19,3);ctx.beginPath();ctx.moveTo(21,-1.5);ctx.lineTo(25.5,0);ctx.lineTo(21,1.5);ctx.fill();
-  ctx.fillStyle='#8cc4f0';ctx.fillRect(3,-.5,16,1);ctx.fillStyle='#8a6a30';ctx.fillRect(0,-4,2,8);ctx.fillStyle='#ff3355';ctx.fillRect(0,-.5,2,1);ctx.restore()}
-function drawWeapon(kind,hx,hy,ang,face){if(kind==='greatsword')return drawSword(hx,hy,ang,face);
-  ctx.save();ctx.translate(hx,hy);ctx.scale(face,1);ctx.rotate(ang);const O='#0b0d16';
-  if(kind==='daggers'){for(const[o,oy]of[[0,0],[.5,3]]){ctx.save();ctx.translate(0,oy);ctx.rotate(o);ctx.fillStyle=O;ctx.fillRect(-3,-2,15,4);ctx.fillStyle='#5a2c1e';ctx.fillRect(-2,-1,3,2);
+  ctx.fillStyle='#8cc4f0';ctx.fillRect(3,-.5,16,1);ctx.fillStyle='#8a6a30';ctx.fillRect(0,-4,2,8);ctx.fillStyle='#ff3355';ctx.fillRect(0,-.5,2,1);}
+  else if(kind==='daggers'){for(const[o,oy]of[[0,0],[.5,3]]){ctx.save();ctx.translate(0,oy);ctx.rotate(o);ctx.fillStyle=O;ctx.fillRect(-3,-2,15,4);ctx.fillStyle='#5a2c1e';ctx.fillRect(-2,-1,3,2);
     ctx.fillStyle='#8a6a30';ctx.fillRect(1,-2.5,1.5,5);ctx.fillStyle='#d8f0e0';ctx.fillRect(2.5,-1,8,2);ctx.fillStyle='#a0ffc0';ctx.fillRect(3,-.5,7,1);ctx.restore()}}
   else if(kind==='spear'){ctx.fillStyle=O;ctx.fillRect(-12,-1.5,44,3);ctx.beginPath();ctx.moveTo(30,-3.5);ctx.lineTo(40,0);ctx.lineTo(30,3.5);ctx.fill();
     ctx.fillStyle='#7a5030';ctx.fillRect(-11,-.5,42,1);ctx.fillStyle='#e8e0c0';ctx.beginPath();ctx.moveTo(31,-2.5);ctx.lineTo(38.5,0);ctx.lineTo(31,2.5);ctx.fill();ctx.fillStyle='#c0283f';ctx.fillRect(27,1,3,4)}
@@ -2045,7 +2155,41 @@ function drawWeapon(kind,hx,hy,ang,face){if(kind==='greatsword')return drawSword
   else if(kind==='bow'){ctx.fillStyle=O;ctx.beginPath();ctx.moveTo(-1,-12);ctx.quadraticCurveTo(9,0,-1,12);ctx.lineTo(1,12);ctx.quadraticCurveTo(12,0,1,-12);ctx.fill();
     ctx.fillStyle='#e8e0c8';ctx.beginPath();ctx.moveTo(0,-11);ctx.quadraticCurveTo(9.5,0,0,11);ctx.quadraticCurveTo(10.5,0,0,-11);ctx.fill();
     ctx.fillStyle='#8a7a60';ctx.fillRect(5,-1.5,2,3);ctx.strokeStyle='rgba(232,226,214,.8)';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(0,-11);ctx.lineTo(-1,0);ctx.lineTo(0,11);ctx.stroke()}
-  ctx.restore()}
+  else if(kind==='hush'){ctx.fillStyle=O;ctx.fillRect(-5,-2,8,4);ctx.beginPath();ctx.moveTo(2,-3);ctx.quadraticCurveTo(16,-9.5,30,-1);ctx.quadraticCurveTo(16,-3,2,3);ctx.fill();
+    ctx.fillStyle='#4a4060';ctx.fillRect(-4,-1,6,2);ctx.fillStyle='#eeeaff';ctx.beginPath();ctx.moveTo(3,-2);ctx.quadraticCurveTo(16,-8,28,-1.2);ctx.quadraticCurveTo(16,-2.5,3,2);ctx.fill();
+    ctx.fillStyle='#c8b8ff';ctx.fillRect(7,-3.4,11,.8);ctx.fillStyle='#f4a8bc';ctx.fillRect(1,-3,2,6);
+    ctx.strokeStyle='#c8bcff';ctx.lineWidth=.7;for(let i=0;i<2;i++){const r=3+((time*14+i*5)%10);ctx.globalAlpha=Math.max(0,1-r/13);ctx.beginPath();ctx.arc(29,-1,r,-.8,.8);ctx.stroke()}ctx.globalAlpha=1}}
+const WSHAPE={greatsword:'blade',ember:'blade',daggers:'short',fang:'short',hush:'short',spear:'pole',glaive:'pole',scythe:'pole',hammer:'heavy',rimeaxe:'heavy',bow:'bow'};
+const WBOX={scythe:[6,26,-3,20],bow:[-1,11,-12,12]};// the area recoloured when runed, if not just the blade strip
+// HONED: gold winged guard, a crimson tassel and a polished gleam. RUNED: bigger wings tipped in the weapon's colour,
+// a blade that glows in that colour, runes that pulse along it, a gem in the guard and a soft aura.
+function weaponTrim(kind,tier,front){
+  const col=WEAPONS[kind].col,[b0,b1,hw]=BLADE[kind]||[2,20,2],shape=WSHAPE[kind]||'blade',gold='#ffd870',gx=shape==='pole'?b0-3:0;
+  if(!front){
+    if(shape==='bow')for(const sg of[-1,1]){ctx.fillStyle='#0b0d16';ctx.fillRect(-2,sg*12-2.5,5,5);ctx.fillStyle=gold;ctx.fillRect(-1,sg*12-1.5,3,3);if(tier>=2){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(0,sg*13);ctx.lineTo(-3,sg*18);ctx.lineTo(3,sg*15);ctx.fill()}}
+    else{const s=tier>=2?.8:.58;for(const sg of[-1,1]){ctx.fillStyle='#0b0d16';ctx.beginPath();ctx.moveTo(gx-1,sg*2);ctx.quadraticCurveTo(gx-6*s,sg*7*s,gx-2*s,sg*11*s);ctx.quadraticCurveTo(gx+1,sg*7*s,gx+3,sg*2);ctx.fill();
+      ctx.fillStyle=gold;ctx.beginPath();ctx.moveTo(gx,sg*2.5);ctx.quadraticCurveTo(gx-4.5*s,sg*7*s,gx-2*s,sg*10*s);ctx.quadraticCurveTo(gx,sg*7*s,gx+2,sg*2.5);ctx.fill();
+      if(tier>=2){ctx.fillStyle=col;ctx.fillRect(gx-2.8*s,sg*9.4*s-.9,1.8,1.8)}}}
+    const tx=shape==='pole'?-12:shape==='bow'?6:-6,sw=Math.sin(time*4+kind.length);
+    for(let i=0;i<4;i++){ctx.fillStyle=i%2?'#c0283f':'#7a1428';ctx.fillRect(tx-1.5-i*.9+sw*i*.25,1+i*1.3,1.8,1.8)}
+    return}
+  if(shape!=='bow'&&kind!=='scythe'){ctx.fillStyle=gold;ctx.fillRect(b0,-hw-.5,b1-b0,.9)}
+  if(shape!=='bow'){const gl=b0+((time*40)%((b1-b0)+30))-15;if(gl>b0&&gl<b1){ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(gl,-hw-1,1.4,hw*2+2)}}
+  if(tier<2){ctx.fillStyle=gold;ctx.fillRect(shape==='pole'?-13:-7,-1.5,2,3);return}
+  const[r0,r1,y0,y1]=WBOX[kind]||[b0,b1,-hw-3,hw+3];
+  ctx.save();ctx.globalCompositeOperation='source-atop';const g=ctx.createLinearGradient(r0,0,r1,0);g.addColorStop(0,col);g.addColorStop(1,'#ffffff');ctx.globalAlpha=.55;ctx.fillStyle=g;ctx.fillRect(r0-1,y0,r1-r0+3,y1-y0);ctx.restore();
+  const n=Math.max(2,Math.round((r1-r0)/6));for(let i=0;i<n;i++){const lit=Math.sin(time*5-i*1.3)>0,rx=r0+(i+.5)*(r1-r0)/n,ry=shape==='bow'?-10+i*20/(n-1||1):kind==='scythe'?i*4:0;
+    ctx.fillStyle=lit?'#ffffff':col;ctx.fillRect(rx-.6,ry-.6,1.2,1.2);if(lit){ctx.fillRect(rx-1.6,ry-.2,.8,.4);ctx.fillRect(rx+.8,ry-.2,.8,.4)}}
+  ctx.save();ctx.globalCompositeOperation='destination-over';const rgb=hexRGB(col),gr=Math.max(5,(y1-y0)*.55),a=.4+.15*Math.sin(time*6);// a soft glow behind the blade
+  for(let i=0;i<=4;i++)addGlow(r0+(r1-r0)*i/4,(y0+y1)/2,gr,rgb,a);ctx.restore();
+  ctx.fillStyle='#0b0d16';ctx.fillRect(gx-1.8,-1.8,3.6,3.6);ctx.fillStyle=col;ctx.fillRect(gx-1.2,-1.2,2.4,2.4);ctx.fillStyle='#ffffff';ctx.fillRect(gx-1,-1,.9,.9)}
+function drawWeapon(kind,hx,hy,ang,face,tier=0){
+  const main=ctx,m=main.getTransform(),sc=clamp(Math.ceil(Math.hypot(m.a,m.b)-.01),1,6),WCV=weaponCanvas(sc),WX=WCV.getContext('2d');
+  ctx=WX;WX.setTransform(1,0,0,1,0,0);WX.globalAlpha=1;WX.globalCompositeOperation='source-over';WX.clearRect(0,0,WCV.width,WCV.height);WX.setTransform(sc,0,0,sc,WOX*sc,WOY*sc);
+  if(tier)weaponTrim(kind,tier,false);
+  weaponArt(kind);
+  if(tier)weaponTrim(kind,tier,true);
+  ctx=main;ctx.save();ctx.translate(hx,hy);ctx.scale(face,1);ctx.rotate(ang);ctx.imageSmoothingEnabled=true;ctx.drawImage(WCV,-WOX,-WOY,124,64);ctx.restore()}
 function slashGeom(p){const W=WS(),k=Math.max(0,p.atkT/W.dur),pr=1-k;let a0=-1.3,a1=1.25;
   if(p.atkDir==='up'){a0=-Math.PI+.25;a1=-.25}else if(p.atkDir==='down'){a0=.25;a1=Math.PI-.25}else if(W.sweep){a0=-2.5;a1=2.2}
   // blade front races ahead in the first third, tail catches up as it fades: reads as one fast cut
@@ -2072,32 +2216,34 @@ function drawPlayer(){const p=P;if(state==='dead'||state==='win')return;if(p.inv
   const fx=Math.round(p.x+p.w/2),fy=Math.round(p.y+p.h);ctx.save();ctx.translate(fx,fy);ctx.rotate(p.lean||0);ctx.translate(-fx,-fy);
   if(RUN.includes(fr)||!p.onGround){const bx=p.face>0?dx+2:dx+sw-3;// cape tail streaming behind
     for(let i=0;i<4;i++){ctx.fillStyle=i%2?'#6a1226':'#a8213a';ctx.fillRect(bx-p.face*(3+i*3)-1,dy+12+i*2+Math.round(Math.sin(p.run*3.1-i)*1.5),3,3-(i>>1))}}
-  if(!front)drawWeapon(p.wpn,hx,hy,ang,p.face);
+  const tier=tiers[p.wpn]||0;
+  if(!front)drawWeapon(p.wpn,hx,hy,ang,p.face,tier);
   ctx.drawImage(img,dx,dy,sw,sh);
   {const lx=Math.round(p.x+p.w/2)-p.face*5,ly=Math.round(p.y+p.h)-10+Math.round(Math.sin((p.run||0)*3)),lit=p.oil>0;// the cracked lantern on the knight's belt
     ctx.fillStyle='#0b0d16';ctx.fillRect(lx-2,ly-1,5,7);ctx.fillStyle='#d8b060';ctx.fillRect(lx-1,ly,3,5);ctx.fillStyle=lit?(Math.sin(time*12)>0?'#fff0b0':'#ffd060'):'#3a3020';ctx.fillRect(lx,ly+1,1,3);
     if(lit&&BIO.dark>0)glowProps.push([lx,ly+2,30,'255,200,120'])}
   if(front&&p.atkT>0&&p.trail&&p.trail.length>1){
     ctx.save();ctx.globalCompositeOperation='lighter';
-    p.trail.slice(0,-1).forEach((s,i,arr)=>{ctx.globalAlpha=.12+.3*i/arr.length;drawWeapon(p.wpn,hx,hy,s.a,p.face)});ctx.restore()}
-  if(front)drawWeapon(p.wpn,hx,hy,ang,p.face);
+    p.trail.slice(0,-1).forEach((s,i,arr)=>{ctx.globalAlpha=.12+.3*i/arr.length;drawWeapon(p.wpn,hx,hy,s.a,p.face,tier)});ctx.restore()}
+  if(front)drawWeapon(p.wpn,hx,hy,ang,p.face,tier);
   ctx.restore();
   if(p.atkT>0)drawSlash(p)}
 
 function drawWorld(){
   drawObjects();
   for(const e of enemies)drawEnemy(e);
-  if(lis)drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,lis.t,lis.face,lis.hurt),lis.x,lis.y);
+  if(lis)drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,lis.t,lis.face,lis.hurt,lis.state==='hunt'?'hunt':'calm'),lis.x,lis.y);
   for(const s of pShots)if(s.kind==='arrow'){ctx.save();ctx.translate(Math.round(s.x),Math.round(s.y));ctx.rotate(Math.atan2(s.vy||0,s.vx));const l=s.big?16:12;
     ctx.fillStyle='#0b0d16';ctx.fillRect(-l,-1.5,l+4,3);ctx.fillStyle='#d8d0b8';ctx.fillRect(-l+1,-.5,l,1);ctx.fillStyle='#ffffff';tri(5,0,1,-2,1,2);ctx.fillStyle='#c0283f';ctx.fillRect(-l,-2.5,3,1);ctx.fillRect(-l,1.5,3,1);
     if(s.big){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.5;ctx.fillStyle='#ff4060';ctx.fillRect(-l-6,-2,l+10,4)}ctx.restore()}
-  for(const s of pShots){if(s.kind==='arrow')continue;ctx.fillStyle='#ff5070';ctx.fillRect(Math.round(s.x)-6,Math.round(s.y)-1,12,2);ctx.fillStyle='#ffffff';ctx.fillRect(Math.round(s.x)+(s.vx>0?3:-6),Math.round(s.y)-1,3,2)}if(boss)(boss.G?drawGuard:drawDragon)();
+  for(const s of pShots){if(s.kind==='arrow')continue;ctx.fillStyle='#ff5070';ctx.fillRect(Math.round(s.x)-6,Math.round(s.y)-1,12,2);ctx.fillStyle='#ffffff';ctx.fillRect(Math.round(s.x)+(s.vx>0?3:-6),Math.round(s.y)-1,3,2)}if(boss)(boss.G?drawGuard:boss.kind==='listener'?drawListenerBoss:drawDragon)();
   ctx.fillStyle='#f0d8a0';for(const c of coins){const by=c.rest?Math.round(Math.sin(time*3+c.x)*1.5):0;ctx.fillRect(Math.round(c.x)-1,Math.round(c.y)-1+by,3,3)}
   drawPlayer();
   if(tutorial)drawTutorialMarker();
   for(const q of projs){ctx.save();ctx.globalAlpha=.3;ctx.fillStyle=q.col;circle(q.x,q.y,q.r*1.8);ctx.globalAlpha=1;circle(q.x,q.y,q.r);ctx.fillStyle='#fff6c0';circle(q.x,q.y,q.r*.4);ctx.restore()}
   for(const q of parts){let a=Math.min(1,q.life/q.max*2);if(q.kind==='firefly'||q.kind==='sparkle')a*=.5+.5*Math.sin(time*6+q.x);
     ctx.globalAlpha=q.ghost?a*.35:a;ctx.fillStyle=q.col;
+    if(q.heart){const hx=Math.round(q.x),hy=Math.round(q.y);ctx.fillRect(hx-3,hy,3,2);ctx.fillRect(hx+1,hy,3,2);ctx.fillRect(hx-3,hy+2,7,2);ctx.fillRect(hx-2,hy+4,5,1);ctx.fillRect(hx-1,hy+5,3,1);ctx.fillRect(hx,hy+6,1,1);continue}
     if(q.bolt){ctx.globalAlpha=q.life/q.max;ctx.strokeStyle='#fff4a0';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(q.x,q.y);const f=Math.floor(time*30);
       for(let i=1;i<6;i++){const k=i/6;ctx.lineTo(q.x+(q.x2-q.x)*k+(hash(i,q.seed+f)%9-4),q.y+(q.y2-q.y)*k+(hash(q.seed+f,i)%9-4))}
       ctx.lineTo(q.x2,q.y2);ctx.stroke();ctx.strokeStyle='#ffffff';ctx.lineWidth=.8;ctx.stroke();continue}
@@ -2172,7 +2318,21 @@ function drawHUD(){
   const ws=WS();text(ws.name+(ws.tier?' +'+ws.tier:''),8,H-14,8,ws.col);if(owned.length>1)text('E: SWAP',8,H-26,8,'rgba(232,226,214,.5)');
   if(boss&&boss.state!=='dying'){const w=260,x=(W-w)/2,y=H-18;text(boss.name+', '+boss.title,W/2,y-12,8,'#ffc090','center');ctx.fillStyle='#0b0d16';ctx.fillRect(x-1,y-1,w+2,6);ctx.fillStyle='#ff6a1a';ctx.fillRect(x,Math.max(0,y),w*Math.max(0,boss.hp)/boss.max,4)}}
 
-function drawSurvivalHUD(){
+const miniOn=()=>flags.dug&&settings.minimap&&!tutorial&&!ROOMS[roomId].hidden;
+function drawMiniMap(){if(!miniOn())return;const R0=ROOMS[roomId],cs=14,ch=9,w=100,h=54,x0=W-8-w,y0=20;
+  ctx.fillStyle='rgba(7,8,13,.62)';ctx.fillRect(x0,y0,w,h);
+  const pcx=R0.x+clamp(P.x/(L.w*T),0,1)*R0.w,pcy=R0.y+clamp(P.y/(L.h*T),0,1)*R0.h;
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,w,h);ctx.clip();
+  for(const k in ROOMS){const r=ROOMS[k];if(r.hidden)continue;const x=Math.round(x0+w/2+(r.x-pcx)*cs),y=Math.round(y0+h/2+(r.y-pcy)*ch),rw=r.w*cs,rh=r.h*ch;
+    if(x>x0+w||y>y0+h||x+rw<x0||y+rh<y0)continue;
+    if(explored.has(k)){ctx.fillStyle=REGIONS[r.reg].ground;ctx.fillRect(x+1,y+1,rw-2,rh-2);ctx.fillStyle=k===roomId?'rgba(232,226,214,.75)':'rgba(232,226,214,.28)';
+      ctx.fillRect(x+1,y+1,rw-2,1);ctx.fillRect(x+1,y+rh-2,rw-2,1);ctx.fillRect(x+1,y+1,1,rh-2);ctx.fillRect(x+rw-2,y+1,1,rh-2);
+      if(r.bench){ctx.fillStyle='#e0304a';ctx.fillRect(x+3,y+rh-4,3,2)}if(r.guard!==undefined&&!beaten[k]){ctx.fillStyle='#ff6a1a';ctx.fillRect(x+rw/2-1,y+rh/2-1,3,3)}}
+    else{ctx.strokeStyle='rgba(232,226,214,.14)';ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(x+1.5,y+1.5,rw-3,rh-3);ctx.setLineDash([])}}
+  ctx.restore();
+  if(Math.sin(time*6)>-.3){ctx.fillStyle='#ffffff';ctx.fillRect(x0+w/2-1,y0+h/2-1,3,3)}
+  ctx.fillStyle='rgba(232,226,214,.25)';ctx.fillRect(x0,y0,w,1);ctx.fillRect(x0,y0+h-1,w,1);ctx.fillRect(x0,y0,1,h);ctx.fillRect(x0+w-1,y0,1,h)}
+function drawSurvivalHUD(){drawMiniMap();
   let y=34;
   if(P.silk>=DIFF().heal&&P.hp<P.maxHp)y+=12;
   if(BIO.dark>=.3||P.oil<P.maxOil){// lantern oil
@@ -2180,10 +2340,12 @@ function drawSurvivalHUD(){
     ctx.fillStyle='#0b0d16';ctx.fillRect(45,y+2,52,4);ctx.fillStyle=P.oil<25?'#e0304a':'#e0b060';ctx.fillRect(46,y+3,50*P.oil/P.maxOil,2);y+=10}
   if(items.draught){ctx.fillStyle='#c0283f';ctx.fillRect(37,y+1,4,6);ctx.fillStyle='#e8e2d6';ctx.fillRect(38,y,2,1);text('x'+items.draught+' (R)',45,y,8,'#e8b0b8');y+=11}
   if(P.headWet||breath<7*(has('bogheart')?2:1)){const n=Math.ceil(breath);for(let i=0;i<n;i++){ctx.fillStyle='#a0d8ff';ctx.fillRect(37+i*7,y+1,5,5);ctx.fillStyle='#ffffff';ctx.fillRect(38+i*7,y+2,1,1)}y+=10}
-  if(BIO.listener&&lis){// how loud you are: the Listener hears everything above the line
+  const lisB=lis||(boss&&boss.kind==='listener'?boss:null);
+  if(BIO.listener&&lisB){ctx.save();ctx.translate(0,miniOn()?62:0);// how loud you are: the Listener hears everything above the line
+    const hs=lisB===lis?lis.state:['pounce','burrow'].includes(lisB.state)?'hunt':'listen';
     ctx.fillStyle='#dcd6ca';ctx.fillRect(W-62,22,3,7);ctx.fillRect(W-60,20,2,2);ctx.fillStyle='#0b0d16';ctx.fillRect(W-55,24,46,4);
     ctx.fillStyle=din>45?'#e0304a':din>22?'#e0b060':'#8cc4f0';ctx.fillRect(W-54,25,44*din/100,2);ctx.fillStyle='#ffffff';ctx.fillRect(W-54+44*.45,23,1,6);
-    text(lis.state==='hunt'?'IT HEARS YOU':lis.state==='listen'?'IT IS LISTENING':'',W-8,31,8,lis.state==='hunt'?'#e0304a':'#c8c2b6','right')}}
+    text(hs==='hunt'?'IT HEARS YOU':hs==='listen'?'IT IS LISTENING':'',W-8,31,8,hs==='hunt'?'#e0304a':'#c8c2b6','right');ctx.restore()}}
 function panel(x,y,w,h){ctx.fillStyle='rgba(7,8,13,.86)';ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(232,226,214,.22)';ctx.fillRect(x,y,w,1);ctx.fillRect(x,y+h-1,w,1);ctx.fillRect(x,y,1,h);ctx.fillRect(x+w-1,y,1,h);
   ctx.fillStyle='#c0283f';ctx.fillRect(x,y,3,1);ctx.fillRect(x,y,1,3);ctx.fillRect(x+w-3,y+h-1,3,1);ctx.fillRect(x+w-1,y+h-3,1,3)}
 function marker(x,y){ctx.fillStyle='#e0304a';tri(x,y,x,y+7,x+5,y+3.5)}
@@ -2229,7 +2391,7 @@ function draw(){
     ctx.fillStyle=BIO.ground;ctx.fillRect(0,H-40,W,40);ctx.fillStyle=BIO.top;ctx.fillRect(0,H-40,W,3);
     const fr=RUN[Math.floor(time*14)%4];ctx.save();ctx.translate(56,H-128);ctx.scale(4,4);drawWeapon(P.wpn,12,15,-2.5+Math.sin(time*16)*.1,1);ctx.restore();ctx.drawImage(SPR[fr][0],56,H-40-88,72,88);
     drawRays();drawBokeh();drawGrade();ctx.drawImage(vign,0,0);
-    text('CRIMSON CREST',310,42,24,'#e0304a','center');text('THE HOLLOW BENEATH',310,74,8,'#e8e2d6','center');
+    eyeSigil(310,56,64,'rgba(224,48,74,.14)',3);text('CRIMSON CREST',310,42,24,'#e0304a','center');text('THE HOLLOW BENEATH',310,74,8,'#e8e2d6','center');
     if(menu.screen==='main'){
       drawMenuList(310,90,170,menuItems());
       if(hasSave())text('RESTING AT '+(saved.v===2?ROOMS[(saved.cp||{}).room||'landing'].name:'THE LANDING'),310,158,8,'rgba(232,226,214,.55)','center')}
@@ -2246,7 +2408,8 @@ function draw(){
   ctx.drawImage(vign,0,0);
   if(state!=='win')drawHUD();
   if(card>0){ctx.globalAlpha=cardAlpha(card,3.2);text(BIO.name.toUpperCase(),W/2,70,16,'#e8e2d6','center');text(BIO.sub.toUpperCase(),W/2,94,8,'#e0304a','center');ctx.globalAlpha=1}
-  if(bossCard>0){ctx.globalAlpha=cardAlpha(bossCard,3);text(bossName,W/2,60,24,'#ff8a3a','center');text(bossTitle,W/2,92,8,'#ffd0a0','center');ctx.globalAlpha=1}
+  if(bossCard>0){const ba=cardAlpha(bossCard,3);ctx.globalAlpha=ba*.85;ctx.fillStyle='#4a0c18';ctx.beginPath();ctx.moveTo(34,54);ctx.lineTo(W-24,50);ctx.lineTo(W-34,106);ctx.lineTo(24,110);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#c0283f';ctx.fillRect(34,54,W-60,1);ctx.fillRect(30,106,W-60,1);eyeSigil(W/2,80,60,'rgba(224,48,74,.18)',3);ctx.globalAlpha=ba;text(bossName,W/2,60,24,'#ff8a3a','center');text(bossTitle,W/2,92,8,'#ffd0a0','center');ctx.globalAlpha=1}
   if(tutorial&&state==='play'&&!gear&&!shop)drawTutorial();
   if(msgT>0){ctx.globalAlpha=Math.min(1,msgT*2);text(msg,W/2,H-40,8,'#ffe0a0','center');ctx.globalAlpha=1}
   if(fadeIn>0){ctx.fillStyle=`rgba(0,0,0,${clamp(fadeIn/.8,0,1)})`;ctx.fillRect(0,0,W,H)}
@@ -2257,17 +2420,31 @@ function draw(){
   if(state==='win'){ctx.fillStyle=`rgba(5,4,8,${clamp(winT/1.5,0,.8)})`;ctx.fillRect(0,0,W,H);ctx.globalAlpha=clamp(winT,0,1);
     text('ESCAPE',W/2,56,24,'#ffc060','center');const m=Math.floor(playTime/60),s=String(Math.floor(playTime%60)).padStart(2,'0');
     text(`ROSARIES ${rosaries}   TIME ${m}:${s}   MARKS ON THE WALL ${deaths}`,W/2,96,8,'#e8e2d6','center');
-    [items.journal&&"MAREN'S STORY CARRIED INTO THE LIGHT",flags.peace&&"THE LISTENER'S PEACE",flags.listenerSlain&&'THE LISTENER IS SILENT',beaten.wyrm&&'VARGRAX SLAIN'].filter(Boolean).forEach((l,i)=>text(l,W/2,116+i*12,8,'#e0304a','center'));
+    [items.journal&&"MAREN'S STORY CARRIED INTO THE LIGHT",flags.listenerFriend&&"A FRIEND IN THE DARK",!flags.listenerFriend&&flags.peace&&"THE LISTENER'S PEACE",flags.listenerSlain&&'THE LISTENER IS SILENT',beaten.wyrm&&'VARGRAX SLAIN'].filter(Boolean).forEach((l,i)=>text(l,W/2,116+i*12,8,'#e0304a','center'));
     if(winT>2)text('PRESS ENTER OR JUMP',W/2,160,8,'#ffe0a0','center');ctx.globalAlpha=1}
   if(shop)drawShop();
   if(gear)drawGear();
   if(paused)drawMenuOverlay();
   if(muted)text('MUTED',W-8,20,8,'rgba(232,226,214,.5)','right');
+  if(saveFlash>0&&state==='play'&&!scene){const a=Math.min(1,saveFlash*1.5),x=W/2+22,y=10;ctx.globalAlpha=a;// the crimson crest: your journey is saved
+    ctx.fillStyle='#0b0d16';ctx.beginPath();ctx.moveTo(x-6,y-6);ctx.lineTo(x+6,y-6);ctx.lineTo(x+6,y+1);ctx.lineTo(x,y+7);ctx.lineTo(x-6,y+1);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#c0283f';ctx.beginPath();ctx.moveTo(x-4.5,y-4.5);ctx.lineTo(x+4.5,y-4.5);ctx.lineTo(x+4.5,y+.5);ctx.lineTo(x,y+5.2);ctx.lineTo(x-4.5,y+.5);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#ffe0a0';ctx.fillRect(x-.5,y-3,1,5);ctx.fillRect(x-2.5,y-1.5,5,1);text('SAVED',x-10,y-4,8,'rgba(232,226,214,.75)','right');ctx.globalAlpha=1}
 }
 
 let last=performance.now();
+// game controllers (Xbox, PlayStation, MFi): A jump, X attack, B dash, Y heal, LB swap, RB art, LT drink, View map, Menu pause
+const PAD_MAP={0:'jump',1:'dash',2:'attack',3:'heal',4:'swap',5:'art',6:'drink',7:'dash',8:'gear',9:'pause',12:'up',13:'down',14:'left',15:'right'};
+let padPrev={};
+function pollPad(){let gp=null;try{gp=[...(navigator.getGamepads?navigator.getGamepads():[])].find(g=>g&&g.connected)}catch(e){}if(!gp)return;
+  const now={};for(const i in PAD_MAP){const b=gp.buttons[i];if(b&&(b.pressed||b.value>.5))now[PAD_MAP[i]]=true}
+  const ax=gp.axes[0]||0,ay=gp.axes[1]||0;if(ax<-.45)now.left=true;if(ax>.45)now.right=true;if(ay<-.6)now.up=true;if(ay>.6)now.down=true;
+  for(const k of new Set([...Object.keys(now),...Object.keys(padPrev)])){if(now[k]&&!padPrev[k]){pressed[k]=true;keys[k]=true;initAudio()}else if(!now[k]&&padPrev[k])keys[k]=false}
+  padPrev=now}
+// leaving the app (home button, a call) pauses the game instead of letting it play on
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)return;stopVoice();if(state==='play'&&!paused&&!scene&&!shop&&!gear){paused=true;openMenu('pause')}});
 function frame(now){
-  const dt=clamp((now-last)/1000,0,1/30);last=now;
+  const dt=clamp((now-last)/1000,0,1/30);last=now;pollPad();if(saveFlash>0)saveFlash-=dt;
   const hold=update(dt)==='hold';
   draw();
   updMusic();
@@ -2277,7 +2454,7 @@ function frame(now){
 // 3. wait for the pixel font so no text is ever drawn in a fallback face (fallback after 1.5 s, e.g. offline)
 const fontReady=document.fonts?Promise.race([document.fonts.load('8px Silkscreen'),new Promise(r=>setTimeout(r,1500))]):Promise.resolve();
 fontReady.catch(()=>{}).then(()=>{last=performance.now();requestAnimationFrame(frame)});
-window.__game={startTutorial,get tutorial(){return tutorial},WEAPONS,GUIDE,KINDS,GUARDS,openShop,openGear,guideRows,get pShots(){return pShots},get beaten(){return beaten},get explored(){return explored},enterRoom,ROOMS,REGIONS,roomTemplate,get roomId(){return roomId},get flags(){return flags},get items(){return items},get lis(){return lis},get scene(){return scene},get shop(){return shop},get gear(){return gear},get sigils(){return sigils},get equipped(){return equipped},get cp(){return cp},get din(){return din},set din(v){din=v},get rosaries(){return rosaries},set rosaries(v){rosaries=v},get menu(){return menu},get settings(){return settings},get paused(){return paused},get owned(){return owned},P,get state(){return state},get L(){return L},get enemies(){return enemies},get boss(){return boss}};
+window.__game={spawnListenerBoss,get settings2(){return settings},startTutorial,get tutorial(){return tutorial},WEAPONS,GUIDE,KINDS,GUARDS,openShop,openGear,guideRows,get pShots(){return pShots},get beaten(){return beaten},get explored(){return explored},enterRoom,ROOMS,REGIONS,roomTemplate,get roomId(){return roomId},get flags(){return flags},get items(){return items},get lis(){return lis},get scene(){return scene},get shop(){return shop},get gear(){return gear},get sigils(){return sigils},get equipped(){return equipped},get cp(){return cp},get din(){return din},set din(v){din=v},get rosaries(){return rosaries},set rosaries(v){rosaries=v},get menu(){return menu},get settings(){return settings},get paused(){return paused},get owned(){return owned},P,get state(){return state},get L(){return L},get enemies(){return enemies},get boss(){return boss}};
 </script>
 
 <script>/* iPad: fast taps on the touch buttons were zooming the page. Block Safari's double-tap and pinch zoom; the game's own pointer events still fire. */
