@@ -9,7 +9,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hi
 canvas{display:block;image-rendering:crisp-edges;image-rendering:pixelated;outline:none}
 #touch{--padx:max(16px,7vw);--pady:max(14px,5vh)}#touch.edge{--padx:12px;--pady:12px}
 .pad{position:fixed;bottom:calc(var(--pady) + env(safe-area-inset-bottom,0px));display:grid;gap:6px;opacity:.85}
-.pad.l{left:calc(var(--padx) + env(safe-area-inset-left,0px));grid-template-columns:repeat(2,50px);grid-template-rows:repeat(3,42px);column-gap:0}
+.pad.l{left:calc(var(--padx) + env(safe-area-inset-left,0px));grid-template-columns:repeat(2,68px);grid-template-rows:repeat(3,42px);column-gap:0}
 /* left and right touch in the middle, so a thumb can rock between them */
 .pad.l [data-k=left]{border-radius:10px 0 0 10px;border-right-width:.5px}.pad.l [data-k=right]{border-radius:0 10px 10px 0;border-left-width:.5px}
 .pad.l [data-k=up],.pad.l [data-k=down]{grid-column:1/3;justify-self:center;width:50px}
@@ -86,7 +86,9 @@ html,body,canvas,.pad,.pad button{touch-action:none;-webkit-touch-callout:none;-
 'use strict';
 const W=480,H=270,T=16;
 // ctx is swapped to an offscreen canvas while sprites are drawn (see drawOutlined)
-const cv=document.getElementById('c'),MAIN_CTX=cv.getContext('2d');let ctx=MAIN_CTX;cv.width=W;cv.height=H;ctx.imageSmoothingEnabled=false;
+const cv=document.getElementById('c'),MAIN_CTX=cv.getContext('2d');let ctx=MAIN_CTX,RES=2;cv.width=W*RES;cv.height=H*RES;ctx.imageSmoothingEnabled=false;
+// the world is always 480x270; SHARP PIXELS draws it on a canvas twice as big, so light, text, curves and weapons get finer detail
+function applyRes(){RES=settings.hires===false?1:2;if(cv.width!==W*RES){cv.width=W*RES;cv.height=H*RES}MAIN_CTX.imageSmoothingEnabled=false}
 const box=document.getElementById('game');
 function fit(){const s=Math.min(box.clientWidth/W,box.clientHeight/H);cv.style.width=W*s+'px';cv.style.height=H*s+'px'}
 addEventListener('resize',fit);fit();
@@ -131,8 +133,9 @@ const DIFFS=[
  {name:'SQUIRE',desc:['WEAKER FOES','CHEAPER HEALING','LONGER MERCY'],enemyHp:.7,bossHp:.7,bossDmg:1,heal:4,mercy:1.6,bossSpeed:.85},
  {name:'KNIGHT',desc:['THE INTENDED','JOURNEY'],enemyHp:1,bossHp:1,bossDmg:1,heal:6,mercy:1.1,bossSpeed:1},
  {name:'CRIMSON',desc:['TOUGHER FOES','BOSSES HIT FOR 2','FASTER BOSSES'],enemyHp:1.4,bossHp:1.3,bossDmg:2,heal:6,mercy:1.1,bossSpeed:1.15}];
-let settings={diff:1,volume:8,music:6,voices:true,narrator:'',shake:true,touch:'auto',pads:'inward',minimap:true};
+let settings={hires:true,diff:1,volume:8,music:6,voices:true,narrator:'',shake:true,touch:'auto',pads:'inward',minimap:true};
 try{Object.assign(settings,JSON.parse(localStorage.getItem(SETKEY))||{})}catch(e){}
+applyRes();
 function saveSettings(){try{localStorage.setItem(SETKEY,JSON.stringify(settings))}catch(e){}}
 const DIFF=()=>DIFFS[settings.diff]||DIFFS[1];
 const IS_TOUCH='ontouchstart' in window||matchMedia('(pointer:coarse)').matches;
@@ -1934,6 +1937,7 @@ function menuItems(){
     {id:'touch',label:'TOUCH BUTTONS',val:settings.touch.toUpperCase()},
     {id:'pads',label:'BUTTON SPOT',val:settings.pads.toUpperCase()},
     {id:'minimap',label:'MINI MAP',val:settings.minimap?'ON':'OFF'},
+    {id:'hires',label:'SHARP PIXELS',val:settings.hires!==false?'ON':'OFF'},
     {id:'back',label:'BACK'}];
   if(menu.screen==='class')return Object.keys(CLASSES).map(k=>({id:'cls',k,label:CLASSES[k].name}));
   return DIFFS.map((d,i)=>({id:'pick',i,label:d.name}))}
@@ -1948,6 +1952,7 @@ function adjust(id,dir){
   else if(id==='shake')settings.shake=!settings.shake;
   else if(id==='touch'){const o=['auto','on','off'];settings.touch=o[(o.indexOf(settings.touch)+dir+3)%3];applyTouch()}
   else if(id==='minimap')settings.minimap=!settings.minimap;
+  else if(id==='hires'){settings.hires=settings.hires===false;applyRes()}
   else if(id==='pads'){settings.pads=settings.pads==='edge'?'inward':'edge';applyTouch()}
   else return;
   saveSettings();sfx(660,.05,'square',0,.04)}
@@ -2477,7 +2482,7 @@ function drawLighting(ox,oy){
   for(const c of coins)if(c.rest)light(c.x,c.y,14,.6);
   const x0=Math.max(0,Math.floor(cam.x/T)),x1=Math.min(L.w-1,x0+W/T+1);
   if(BIO.hazard==='lava')for(let tx=x0;tx<=x1;tx+=2)if(L.g[(L.h-2)*L.w+tx]===3)light(tx*T+8,(L.h-2)*T,60,.7);
-  lx.globalCompositeOperation='source-over';ctx.drawImage(LIGHT_CV,0,0)}
+  lx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=true;ctx.drawImage(LIGHT_CV,0,0);ctx.imageSmoothingEnabled=false}// soft-edged light
 function drawGlows(ox,oy){
   const k=.35+BIO.dark*.6;ctx.save();ctx.translate(ox,oy);ctx.globalCompositeOperation='lighter';
   for(const[gx,gy,gr,rgb]of glowProps)addGlow(gx,gy,gr*.8,rgb||'255,180,100',.24*k);
@@ -2599,7 +2604,7 @@ function drawClassScreen(){ctx.fillStyle='rgba(5,4,8,.94)';ctx.fillRect(0,0,W,H)
 function drawMenuOverlay(){if(menu.screen==='class'){drawClassScreen();return}if(menu.screen==='diff')drawDiffScreen();else if(menu.screen==='settings')drawSettings();else if(menu.screen==='pause')drawPause()}
 function cardAlpha(t,len){return clamp(Math.min(t,len-t)*2,0,1)}
 function draw(){
-  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;
+  ctx.setTransform(RES,0,0,RES,0,0);ctx.globalAlpha=1;ctx.imageSmoothingEnabled=false;
   if(scene){drawScene();return}
   if(state==='title'){drawBG();ctx.save();ctx.translate(-Math.round(cam.x),0);for(const q of parts){ctx.globalAlpha=Math.min(1,q.life);ctx.fillStyle=q.col;ctx.fillRect(Math.round(q.x),Math.round(q.y),q.size,q.size)}ctx.restore();ctx.globalAlpha=1;
     ctx.fillStyle=BIO.ground;ctx.fillRect(0,H-40,W,40);ctx.fillStyle=BIO.top;ctx.fillRect(0,H-40,W,3);
