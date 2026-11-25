@@ -80,6 +80,10 @@ html,body,canvas,.pad,.pad button{touch-action:none;-webkit-touch-callout:none;-
  * v16 New creatures: the Sunken Sea, the Stormwell and the Overgrowth with 7 new foes and 6 new guardians
  *     (lightning and tidal-wave attacks, 6 new sigils); 3 beasts to tame and ride (B / RIDE), which take a hit for you;
  *     4 new heroes to play as (Eclipse King, Lava Warrior, Ice Star, Silver Leaf), each with its own look and perks
+ * v17 Joints: the knight is a puppet now, with hips, knees, shoulders, elbows and a waist; feet plant on the ground,
+ *     the sword arm reaches out with every swing, the cape trails on links. Every walking creature steps on two-bone
+ *     legs (insects in a tripod gait, cats in a gallop), wings have a wrist that lags the shoulder, tentacles curl in
+ *     three joints, the Listener's paws step, Vargrax's legs and wings bend, and Tobb, the Smith and Ysolde have arms
  * v12 Voices: ranks the device's voices (neural / natural first), near-natural pitch, sentence-by-sentence
  *     pacing with pauses, music ducks under speech, NARRATOR setting to pick the voice
  */
@@ -205,6 +209,103 @@ const CLASSES={
 const SPRC={};for(const c in CLASSES){const pal=Object.assign({},PAL,CLASSES[c].pal);SPRC[c]={};
   for(const k in LEGS){const rows=(RUN.includes(k)?LEAN:BODY).concat(LEGS[k]);SPRC[c][k]=[mkSprite(rows,false,pal),mkSprite(rows,true,pal)]}}
 const CLS=()=>CLASSES[P.cls]||CLASSES.knight,PSPR=()=>SPRC[P.cls]||SPR;
+/* ---------- joints (v17): two-bone limbs solved by inverse kinematics, and gaits that plant each foot ----------
+ * ik2 bends a limb from a root to a target. With bend -1 a downward limb's knee points forward (+x);
+ * with bend +1 it points back (elbows, bird and hind legs). gaitFoot walks a foot back along the ground,
+ * then lifts it forward in an arc. */
+function ik2(hx,hy,tx,ty,a,b,bend){let dx=tx-hx,dy=ty-hy,d=Math.hypot(dx,dy)||.001;const mx=a+b-.01,mn=Math.abs(a-b)+.01;
+  if(d>mx){dx*=mx/d;dy*=mx/d;d=mx}else if(d<mn){dx*=mn/d;dy*=mn/d;d=mn}
+  const base=Math.atan2(dy,dx),off=Math.acos(clamp((a*a+d*d-b*b)/(2*a*d),-1,1))*bend;
+  return[hx+Math.cos(base+off)*a,hy+Math.sin(base+off)*a,hx+dx,hy+dy]}
+function gaitFoot(u,stride,lift){u-=Math.floor(u);if(u<.5)return[stride*(.5-2*u),0];const v=(u-.5)*2;return[stride*(v*v*(3-2*v)-.5),-lift*Math.sin(Math.PI*v)]}
+function seg(x0,y0,x1,y1,w,col){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.lineCap='butt'}
+
+/* the knight is now a puppet: helmet and breastplate from the sprite, legs, arms and cape on joints */
+const KPARTS={};
+function knightParts(cls){let k=KPARTS[cls];if(k)return k;const pal=Object.assign({},PAL,(CLASSES[cls]||CLASSES.knight).pal);
+  k=KPARTS[cls]={pal,head:mkSprite(BODY.slice(0,13),false,pal),
+    torso:mkSprite(BODY.slice(13).map(r=>r.split('').map((ch,i)=>i<5&&(ch==='r'||ch==='R')?'.':ch).join('')),false,pal),
+    // front limbs in the breastplate's steel with a lit edge; back limbs a step into shadow
+    f1:shade(pal.A,.34),f2:shade(pal.A,.18),fHi:shade(pal.A,.5),b1:shade(pal.A,.02),b2:shade(pal.a,.05),bHi:shade(pal.A,.1),
+    boot:shade(pal.a,-.2),sole:'#0b0d16',glove:shade(pal.a,-.2)};return k}
+// pose: {mode:'idle'|'run'|'air'|'dash'|'ride'|'heal', u: gait phase, amp: stride size, vy, t, crouch, hand: ['S',dx,dy] from the shoulder, push}
+// a runner's foot: a short stance that lands under the hips and pushes back, then the heel kicks up behind
+// and the knee drives through before the foot comes down again
+function runFoot(u,S,L){u-=Math.floor(u);const st=.36;
+  if(u<st)return[S*(.3-.75*u/st),0];
+  const v=(u-st)/(1-st),e=v*v*(3-2*v);return[S*(-.45+.75*e),-L*Math.pow(Math.sin(Math.PI*Math.min(1,v*1.15)),.8)]}
+function knightJoints(o){
+  const t=o.t||0,amp=o.amp??1,HB=-1.6,HF=.4;
+  let hipY=-7+(o.crouch||0),rot=0,ff=[1.6,0],fb=[-2.2,0],cape=.15,capeW=.05,swingB=0,head=0,hipX=0,pumpA=null;
+  switch(o.mode){
+    case'run':{const u=o.u,lean=.42*Math.min(1.1,amp),S=5.6*amp,L=3.4*amp,f1=runFoot(u,S,L),f2=runFoot(u+.5,S,L);
+      // lean from the ankles: hips move forward over the feet and the back stays straight, head in line
+      hipX=Math.sin(lean)*7;rot=lean;hipY+=.35*amp*Math.cos(4*Math.PI*(u-.18));
+      ff=[HF+.6+f1[0],f1[1]];fb=[HB+1.6+f2[0],f2[1]];// feet stay planted behind the hips, so the legs slant forward with the body
+      pumpA=clamp(-f1[0]/(S*.45),-1,1);// opposite arm and leg move together
+      cape=.8+amp*.4;capeW=.12+amp*.1;head=.25*amp*Math.cos(4*Math.PI*u);break}
+    case'air':if((o.vy||0)<0){ff=[HF+2.9,-3.2];fb=[HB-1.4,-.8];cape=.55;rot=.08}
+      else{const fl=Math.sin(t*11)*.5;ff=[HF+1.5+fl,-.7];fb=[HB-1.7-fl,.1];cape=1.45;capeW=.2;rot=-.04;swingB=-1.5}break;
+    case'dash':rot=.55;hipX=Math.sin(.55)*7;ff=[HF+3.6,-1.1];fb=[HB-2.4,-.5];cape=1.45;capeW=.18;swingB=-3;break;
+    case'ride':hipY=-6.4;ff=[HF+3.1,-1.7];fb=[HB+3.6,-2];rot=.08;cape=.75;capeW=.12;break;
+    case'heal':hipY=-4.8;ff=[HF+2.7,0];fb=[HB-2.1,0];rot=.14;cape=.15;break;
+    default:hipY+=.28*Math.sin(t*2.2);cape=.12+Math.sin(t*1.3)*.05;head=.2*Math.sin(t*2.2-.6)}
+  const px=-.5+hipX,py=hipY,c=Math.cos(rot),s=Math.sin(rot),R=(x,y)=>[px+(x+hipX-px)*c-(y-py)*s,py+(x+hipX-px)*s+(y-py)*c];
+  const sF=R(.9,hipY-4.1),sB=R(-2.7,hipY-4.1),capeA=R(-3.8,hipY-4.6);
+  const leg=(hx,f)=>{hx+=hipX;const[kx,ky,ax,ay]=ik2(hx,hipY,f[0],f[1],3.9,3.9,-1);return{h:[hx,hipY],k:[kx,ky],a:[ax,ay]}};
+  const LF=leg(HF,ff),LB=leg(HB,fb);
+  const arm=(sh,tg)=>{const[ex,ey,hx,hy]=ik2(sh[0],sh[1],tg[0],tg[1],3.1,3.1,1);return{s:sh,e:[ex,ey],h:[hx,hy]}};
+  // a runner's arm: swung from the shoulder, elbow held at ninety degrees, hand travelling from hip to chest
+  const pump=(sh,a)=>{const th=a*.8+rot*.4,ex=sh[0]+Math.sin(th)*3.1,ey=sh[1]+Math.cos(th)*3.1;return{s:sh,e:[ex,ey],h:[ex+Math.cos(th)*3,ey-Math.sin(th)*3]}};
+  let AF;
+  if(o.hand&&o.hand[0]==='S')AF=arm(sF,[sF[0]+o.hand[1],sF[1]+o.hand[2]]);
+  else if(o.mode==='heal')AF=arm(sF,[sF[0]+1.6,sF[1]+3]);
+  else if(pumpA!==null)AF=pump(sF,-pumpA);
+  else AF=arm(sF,[sF[0]+2.2+(o.push||0),sF[1]+3.3]);
+  const AB=o.mode==='heal'?arm(sB,[sF[0]+.2,sF[1]+2.4]):o.hand?arm(sB,[sB[0]-3.2,sB[1]+2.6]):pumpA!==null?pump(sB,pumpA):arm(sB,[sB[0]-.5+swingB,sB[1]+5.4-Math.abs(swingB)*.25]);
+  return{hipX,hipY,rot,LF,LB,AF,AB,capeA,cape,capeW,head,hand:AF.h,t,headTop:hipY-5-13+head}}
+// one plate of a limb: a hard-edged taper from w0 to w1, with a lit strip along one edge
+function plate(x0,y0,x1,y1,w0,w1,col,hi,side=-1){const dx=x1-x0,dy=y1-y0,l=Math.hypot(dx,dy)||1,nx=-dy/l*side,ny=dx/l*side;
+  ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x0+nx*w0/2,y0+ny*w0/2);ctx.lineTo(x1+nx*w1/2,y1+ny*w1/2);ctx.lineTo(x1-nx*w1/2,y1-ny*w1/2);ctx.lineTo(x0-nx*w0/2,y0-ny*w0/2);ctx.closePath();ctx.fill();
+  if(hi){ctx.fillStyle=hi;ctx.beginPath();ctx.moveTo(x0+nx*w0/2,y0+ny*w0/2);ctx.lineTo(x1+nx*w1/2,y1+ny*w1/2);ctx.lineTo(x1+nx*(w1/2-.7),y1+ny*(w1/2-.7));ctx.lineTo(x0+nx*(w0/2-.7),y0+ny*(w0/2-.7));ctx.closePath();ctx.fill()}}
+// part 'all' | 'body' (everything but the front arm) | 'arm' (only the front arm, drawn over a swung weapon)
+function paintKnight(ox,oy,face,cls,J,part='all'){
+  const K=knightParts(cls),pal=K.pal,t=J.t;
+  ctx.save();ctx.translate(ox,oy);ctx.scale(face,1);
+  const INK='#0b0d16',P2=(x0,y0,x1,y1,w0,w1,col)=>{plate(x0,y0,x1,y1,w0+.6,w1+.6,INK);plate(x0,y0,x1,y1,w0,w1,col)};// each plate edged in ink, like the sprite
+  const drawArm=(A,c1,c2)=>{// upper arm, a flared vambrace, and a square gauntlet
+    P2(A.s[0],A.s[1],A.e[0],A.e[1],2.5,2.1,c1);
+    P2(A.e[0],A.e[1],A.h[0],A.h[1],1.9,2.5,c2);ctx.fillStyle=INK;ctx.fillRect(A.h[0]-1.4,A.h[1]-1.4,2.8,2.8);ctx.fillStyle=K.glove;ctx.fillRect(A.h[0]-1.1,A.h[1]-1.1,2.2,2.2)};
+  const drawLeg=(G,c1,c2,hi)=>{// thigh, greave and a boot with a sole and a toe that points forward
+    P2(G.h[0],G.h[1],G.k[0],G.k[1],3,2.4,c1);
+    P2(G.k[0],G.k[1],G.a[0],G.a[1],2.3,2.1,c2);
+    const x=G.a[0],y=G.a[1];ctx.fillStyle=INK;ctx.fillRect(x-1.5,y-1.9,4.4,2.6);ctx.fillStyle=K.boot;ctx.beginPath();ctx.moveTo(x-1.2,y-1.6);ctx.lineTo(x+1,y-1.6);ctx.lineTo(x+2.6,y-.3);ctx.lineTo(x+2.6,y+.4);ctx.lineTo(x-1.4,y+.4);ctx.closePath();ctx.fill();
+    ctx.fillStyle=K.sole;ctx.fillRect(x-1.4,y-.2,4,.7)};
+  if(part!=='arm'){
+    // the cape: links that hang from the shoulders and trail back as he moves
+    let x=J.capeA[0],y=J.capeA[1];
+    for(let i=0;i<5;i++){const a=Math.PI/2+J.cape*(.55+i*.16)+Math.sin(t*7-i*.9)*J.capeW*(1+i*.5),l=2.2;
+      const nx=x+Math.cos(a)*l,ny=y+Math.sin(a)*l;plate(x,y,nx,ny,4.8-i*.4,4.4-i*.45,pal.r,pal.R,1);x=nx;y=ny}
+    drawArm(J.AB,K.b1,K.b2,null);
+    drawLeg(J.LB,K.b1,K.b2,null);
+    ctx.save();ctx.translate(-.5+J.hipX,J.hipY);ctx.rotate(J.rot);ctx.translate(.5,-J.hipY);
+    ctx.drawImage(K.torso,-9,J.hipY-5,18,5);
+    ctx.save();ctx.translate(-.5,J.hipY-5);ctx.rotate(-J.rot*.2);ctx.drawImage(K.head,-9.5,-13+J.head,18,13);ctx.restore();// the head stays looking ahead
+    ctx.restore();
+    drawLeg(J.LF,K.f1,K.f2,null)}
+  if(part!=='body')drawArm(J.AF,K.f1,K.f2,null);
+  ctx.restore()}
+function playerPose(p){const W=WS();
+  let mode='idle';if(p.ride)mode='ride';else if(p.healT>0&&p.onGround)mode='heal';else if(p.dashT>0)mode='dash';else if(!p.onGround)mode='air';else if(Math.abs(p.vx)>20)mode='run';
+  let hand=null;if(p.atkT>0&&p.poseFront){const a=p.swAng,r=W.thrust?3.5+(p.push||0)*.4:W.ranged?5.6:5.2;hand=['S',Math.cos(a)*r,Math.sin(a)*r]}
+  return{mode,u:(p.run||0)*.42,amp:clamp(Math.abs(p.vx)/140,.45,1.15),vy:p.vy,t:time,crouch:Math.max(0,-(p.sq||0))*6,hand,push:hand?0:p.push||0}}
+// a knight standing, running or jumping in a cutscene or menu: (x,y) is where the old 18x22 sprite's corner went
+function sceneKnight(x,y,s,fr,face=1,rot=0,cls=P.cls,wpn=P.wpn){
+  const run=RUN.includes(fr),J=knightJoints({mode:fr==='jump'?'air':run?'run':'idle',u:time*3,amp:1,vy:-1,t:time});
+  ctx.save();ctx.translate(x+9*s,y+22*s);ctx.rotate(rot);ctx.scale(s,s);
+  if(wpn)drawWeapon(wpn,face*J.hand[0],J.hand[1],-2.2,face,wpn===P.wpn?tiers[wpn]||0:0);
+  drawOutlined((px,py)=>paintKnight(px+24,py+40,face,cls,J),-24,-40);
+  ctx.restore()}
 const MOUNTS={
  panther:{name:'STATIC PANTHER',k:'m_panther',desc:'VERY FAST, WITH AN EXTRA JUMP',speed:1.75,jump:1.08,air:1,rise:7,where:'ASLEEP ON THE STORM CLIFFS, IN THE STORMWELL.'},
  rhino:{name:'VINEHORN RHINO',k:'m_rhino',desc:'FAST AND STURDY. RAMS FOES OUT OF THE WAY',speed:1.45,jump:1,air:0,ram:true,rise:11,where:'GRAZING IN THE VINE TUNNELS OF THE OVERGROWTH.'},
@@ -268,7 +369,7 @@ const KINDS={
  m_panther:{look:'panther',w:20,h:10,col:'#202a44',storm:true,eye:'#e8f4ff'},
  m_rhino:{look:'rhino',w:20,h:13,col:'#3a5a4a',moss:true},
  m_roc:{look:'roc',w:22,h:14,col:'#3c3a5c'}};
-for(const k in KINDS){KINDS[k].dk=shade(KINDS[k].col,-.45);KINDS[k].lt=shade(KINDS[k].col,.35)}
+for(const k in KINDS){KINDS[k].dk=shade(KINDS[k].col,-.45);KINDS[k].dk2=shade(KINDS[k].col,-.65);KINDS[k].lt=shade(KINDS[k].col,.35)}
 for(const k of['wisp','shard','fireimp','magma','turret','drone','sentry'])KINDS[k].glow=true;
 
 /* ---------- realm guardians: giant versions of each realm's creatures, one per exit door ---------- */
@@ -696,12 +797,17 @@ const NPCS={
    ...Object.keys(ARTS).map(a=>({name:ARTS[a].name,desc:ARTS[a].desc,price:ARTS[a].price,can:()=>!arts[a],sold:()=>!!arts[a],buy:()=>{arts[a]=true}}))]}};
 function drawNPC(id,x,y,t){
   const b=Math.round(Math.sin(t*2)),R=(c,px,py,w,h)=>{ctx.fillStyle=c;ctx.fillRect(x+px,y+py,w,h)};
+  const arm=(sx,sy,tx,ty,col,hand,bend=1)=>{const[ex,ey,hx,hy]=ik2(x+sx,y+sy,x+tx,y+ty,3.2,3.2,bend);seg(x+sx,y+sy,ex,ey,2.2,col);seg(ex,ey,hx,hy,1.9,col);ctx.fillStyle=hand;ctx.fillRect(Math.round(hx-1),Math.round(hy-1),2,2)};
   if(id==='tobb'){R('#5a3a20',0,4+b,9,12);R('#7a5230',1,6+b,7,2);R('#3e4a3a',5,9+b,9,11);R('#2a3428',4,4+b,9,7);R('#0b0d16',7,7+b,5,3);
-    R('#f0d080',8,8+b,1,1);R('#f0d080',10,8+b,1,1);R('#6a5030',15,5+b,1,15);R('#d8b060',14,3+b,3,3);R('#ffe8a0',15,4+b,1,1);R('#2a2420',6,20,3,2);R('#2a2420',10,20,3,2)}
+    R('#f0d080',8,8+b,1,1);R('#f0d080',10,8+b,1,1);R('#6a5030',15,5+b,1,15);R('#d8b060',14,3+b,3,3);R('#ffe8a0',15,4+b,1,1);R('#2a2420',6,20,3,2);R('#2a2420',10,20,3,2);
+    arm(11,11+b,15,12+b+Math.sin(t*1.7)*.5,'#2e3a2c','#d8b090');arm(6,11+b,4+Math.sin(t*.9)*1.5,16+b,'#2e3a2c','#d8b090')}
   else if(id==='smith'){R('#3a3e48',2,9,12,11);R('#6a4a30',4,12,8,8);R('#8a8e9a',3,1+b,10,9);R('#b8bcc6',4,1+b,8,2);R('#5a5e6a',1,0+b,2,3);R('#5a5e6a',13,0+b,2,3);
-    R('#0b0d16',5,4+b,6,3);R('#ff9030',6,5+b,1,1);R('#ff9030',9,5+b,1,1);R('#7a5a3a',14,8,1,10);R('#5a5e6a',12,6,5,3);R('#2a2420',4,20,3,2);R('#2a2420',9,20,3,2)}
+    R('#0b0d16',5,4+b,6,3);R('#ff9030',6,5+b,1,1);R('#ff9030',9,5+b,1,1);R('#2a2420',4,20,3,2);R('#2a2420',9,20,3,2);
+    const up=Math.pow(Math.max(0,Math.sin(t*2.4)),6)*4;// now and then he lifts the hammer from shoulder and elbow
+    R('#7a5a3a',14,8-up,1,10);R('#5a5e6a',12,6-up,5,3);arm(11,11,14.5,13-up,'#2e323c','#8a8e9a');arm(4,11,2.4,16,'#2e323c','#8a8e9a',-1)}
   else{R('#2a3a5a',3,8,10,13);R('#3a4e72',4,9,3,11);R('#d8d0c0',6,6+b,5,4);R('#0b0d16',7,7+b,1,1);R('#0b0d16',9,7+b,1,1);
-    R('#3a8ab0',1,2+b,15,4);R('#5ab0d8',3,1+b,11,2);R('#d0f4ff',5,2+b,2,1);R('#c8e8ff',10,3+b,2,1);R('#7a6a50',14,6,1,15);R('#a0f0ff',13,4,3,3)}}
+    R('#3a8ab0',1,2+b,15,4);R('#5ab0d8',3,1+b,11,2);R('#d0f4ff',5,2+b,2,1);R('#c8e8ff',10,3+b,2,1);R('#7a6a50',14,6,1,15);R('#a0f0ff',13,4,3,3);
+    arm(11,11+b,14.5,12.5+b,'#22304c','#d8d0c0');arm(5,11+b,3+Math.sin(t*1.2)*1.2,15.5+b+Math.cos(t*1.2)*.6,'#22304c','#d8d0c0')}}
 let shopMsg='';
 function openShop(id){shop={id,sel:0};shopMsg=''}
 function shopInput(){
@@ -987,7 +1093,7 @@ function drawListenerBoss(){const b=boss,gy=L.arenaGy*T;
   if(b.state==='burrow'&&b.st>=.4&&b.st<1.3){ctx.fillStyle=`rgba(255,64,80,${.5+.3*Math.sin(time*16)})`;for(let i=-2;i<=2;i++)ctx.fillRect(b.mark+i*6-1,gy-2-(i&1)*2,3,2);return}// cracks where it will burst out
   ctx.save();ctx.globalAlpha=b.alpha;
   if(b.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(b.x+b.w/2,b.y+b.h+1,b.w/2,3,0,0,7);ctx.fill()}
-  drawOutlined((px,py)=>drawListenerShape(px+14,py+10,1,b.t,b.face,b.hurt,b.mood),b.x,b.y,2);ctx.restore();
+  drawOutlined((px,py)=>drawListenerShape(px+14,py+10,1,b.t,b.face,b.hurt,b.mood,b.x*b.face/2),b.x,b.y,2);ctx.restore();
   const wind={pounce:.55,howl:.6,burrow:.4}[b.state];if(wind&&b.st<wind)text('!',b.x+b.w/2,b.y-40+Math.sin(time*20)*1.5,16,'#ff4050','center');
   if(b.state==='pounce'&&b.mark!=null){ctx.fillStyle=`rgba(255,64,80,${.45+.3*Math.sin(time*14)})`;ctx.fillRect(b.mark-10,gy-2,20,2);ctx.fillRect(b.mark-1,gy-7,2,4)}
   if(b.state==='dizzy')for(let i=0;i<3;i++){const a=time*5+i*2.1;ctx.fillStyle='#ffe080';ctx.fillRect(b.x+b.w/2+14+Math.cos(a)*12,b.y-30+Math.sin(a)*4,3,3)}
@@ -1088,7 +1194,7 @@ function updRiding(dt){
   if(per&&P.hp<P.maxHp){P.regenT=(P.regenT||0)+dt;if(P.regenT>=per){P.regenT=0;P.hp++;burst(P.x+P.w/2,P.y+6,'#8aea8a',10,70,1,0);sfx(700,.15,'triangle',200,.04)}}else P.regenT=0}
 function ramEnemy(e){e.ramAt=time;e.hp-=2;e.hurt=.12;e.kbT=.15;e.kb=Math.sign(P.vx||P.face)*260;P.ramGuard=.3;impact(e.x+e.w/2,e.y+e.h/2,'#8aca6a',true);shake=Math.max(shake,3);sfx(110,.2,'square',-50,.07);if(e.hp<=0)killEnemy(e)}
 function drawMount(p){const m=MOUNTS[p.ride],K=KINDS[m.k],run=Math.abs(p.vx)>20;
-  const look={k:m.k,w:K.w,h:K.h,t:run?time*1.5:time*.2,dir:p.face,hurt:0,onGround:p.onGround,st:0,state:'',run};
+  const look={k:m.k,x:p.x/2,w:K.w,h:K.h,t:run?time*1.5:time*.2,dir:p.face,hurt:0,onGround:p.onGround,st:0,state:'',run};
   drawOutlined((px,py)=>drawEnemyBody(look,px,py),Math.round(p.x+p.w/2-K.w),Math.round(p.y+p.h-K.h*2+3),2)}
 
 /* ---------- the optional tutorial (TUTORIAL on the title screen): a training field outside Kel Varran ----------
@@ -1291,10 +1397,6 @@ function drawScene(){
 /* ---------- scene painters (draw a full 480x270 picture for a time t in seconds) ---------- */
 function gradient(a,b){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,a);g.addColorStop(1,b);ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
 function glow(x,y,r,rgb,a){ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(${rgb},${a})`);g.addColorStop(1,`rgba(${rgb},0)`);ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore()}
-function sceneKnight(x,y,s,fr,face=1,rot=0){
-  ctx.save();ctx.translate(x+9*s,y+22*s);ctx.rotate(rot);ctx.translate(-9*s,-22*s);
-  ctx.save();ctx.scale(s,s);drawWeapon(P.wpn,face>0?12:6,15,-2.2,face,tiers[P.wpn]||0);ctx.restore();
-  ctx.drawImage(PSPR()[fr][face>0?0:1],0,0,18*s,22*s);ctx.restore()}
 function caveFrame(col,seed){// jagged rock framing the picture
   ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(0,0);for(let x=0;x<=W;x+=12)ctx.lineTo(x,30+(hash(x,seed)%26));ctx.lineTo(W,0);ctx.fill();
   ctx.beginPath();ctx.moveTo(0,H);for(let x=0;x<=W;x+=12)ctx.lineTo(x,H-70-(hash(x,seed+1)%14));ctx.lineTo(W,H);ctx.fill()}
@@ -1305,12 +1407,13 @@ function eyeSigil(x,y,s,col,lw=2){// the closed eye of Kel Varran: a lowered lid
 function eyeStone(x,y,r,t,n){const c=['','#80e0ff','#f0e0b0','#70b0ff'][n]||'#c0f0ff';glow(x,y,r*4,'180,230,255',.35+.15*Math.sin(t*3));
   ctx.fillStyle='#14202c';ctx.beginPath();ctx.ellipse(x,y,r*1.3,r,0,0,7);ctx.fill();ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(x,y,r,r*.7,0,0,7);ctx.fill();
   ctx.fillStyle='#0b0d16';ctx.fillRect(x-r*.6,y-.5,r*1.2,1.2);ctx.fillStyle='#ffffff';ctx.fillRect(x-r*.4,y-r*.4,1.5,1.5)}
-function drawListenerShape(x,y,s,t,face=1,hurt=0,mood='calm'){// mood 'hunt': ears up, tiny fangs; 'calm': happy closed eyes
+function drawListenerShape(x,y,s,t,face=1,hurt=0,mood='calm',mv){// mood 'hunt': ears up, tiny fangs; 'calm': happy closed eyes
   ctx.save();ctx.translate(x,y);ctx.scale(s*face,s);
   const fur=hurt>0?'#ffffff':'#f2e9dc',shade=hurt>0?'#e8e8e8':'#d6c9b8',pink='#f4a8bc',ink='#3a3040',hunt=mood==='hunt',bob=Math.sin(t*(hunt?10:3))*(hunt?1.2:.8);
   const wag=Math.sin(t*(hunt?14:5))*.5;ctx.save();ctx.translate(-12,-2);ctx.rotate(-.6+wag);// a fluffy tail that wags
   ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(-5,0,7.5,4,0,0,7);ctx.fill();ctx.fillStyle=fur;ctx.beginPath();ctx.ellipse(-6,-.6,5.6,2.6,0,0,7);ctx.fill();ctx.restore();
-  ctx.fillStyle=shade;for(let i=0;i<4;i++){const st=Math.sin(t*(hunt?16:6)+i*1.6)*(hunt?2:1);ctx.beginPath();ctx.ellipse(-9+i*6+st*.5,7,2.7,3.2,0,0,7);ctx.fill()}// stubby paws
+  for(let i=0;i<4;i++){const hx=-9+i*6,g=mv===undefined?[Math.sin(t*(hunt?16:6)+i*1.6)*(hunt?1:.5),-Math.max(0,Math.sin(t*(hunt?16:6)+i*1.6))*(hunt?1.2:.4)]:gaitFoot(mv/9+(i%2?.5:0)+(i>1?.22:0),4.5,2.2);// stubby legs on little joints
+    const[kx,ky,ax,ay]=ik2(hx,3,hx+g[0],9.6+g[1],3.5,3.5,i<2?1:-1);seg(hx,3,kx,ky,4.6,shade);seg(kx,ky,ax,ay,4,shade);ctx.fillStyle=fur;ctx.beginPath();ctx.ellipse(ax+.6,ay-.4,2.4,1.5,0,0,7);ctx.fill()}
   ctx.fillStyle=fur;ctx.beginPath();ctx.ellipse(0,1+bob*.3,14,8.5,0,0,7);ctx.fill();
   ctx.fillStyle=shade;ctx.beginPath();ctx.ellipse(1,6+bob*.3,9,2.4,0,0,7);ctx.fill();
   ctx.fillStyle='rgba(255,255,255,.5)';ctx.beginPath();ctx.ellipse(-3,-4+bob*.3,6,2,-.2,0,7);ctx.fill();// soft sheen
@@ -1792,7 +1895,7 @@ function updPose(p,dt){
   p.poseFront=t.front;p.push=t.push;
   p.trail=(p.trail||[]).filter(s=>time-s.t<.07);
   if(p.atkT>0&&t.front)p.trail.push({a:p.swAng,t:time});
-  const lean=p.dashT>0?.32*p.face:p.onGround?clamp(p.vx/210,-1.2,1.2)*.2:clamp(p.vx/300,-1,1)*.08;
+  const lean=p.dashT>0?.12*p.face:p.onGround?0:clamp(p.vx/300,-1,1)*.06;// the waist does most of the leaning now
   p.lean=(p.lean||0)+(lean-(p.lean||0))*(1-Math.exp(-dt*17))}
 
 /* ---------- enemies ---------- */
@@ -1882,7 +1985,7 @@ function updGuard(dt){
   if(!G.fly&&b.state!=='drop'){b.vy+=1500*dt;moveBody(b,dt)}
   if(b.state!=='dying'&&b.alpha>.5&&!(b.calm>0)&&ov(b,P))hurtPlayer(1,cx,false,true)}
 function drawGuard(){const b=boss,K=KINDS[b.k],tele=['charge','leap','spread','rain'].includes(b.state)&&b.st<.4&&Math.floor(b.st*20)%2;
-  const look={k:b.k,w:K.w,h:K.h,t:b.t,dir:b.dir,hurt:tele?1:b.hurt,onGround:b.onGround,st:b.state==='shoot'||b.state==='spread'?2:0,state:'',boss:true};
+  const look={k:b.k,x:b.x/b.s,w:K.w,h:K.h,t:b.t,dir:b.dir,hurt:tele?1:b.hurt,onGround:b.onGround,st:b.state==='shoot'||b.state==='spread'?2:0,state:'',boss:true};
   ctx.save();ctx.globalAlpha=b.alpha;drawEnemyFx(look,b.x,b.y,b.s);
   drawOutlined((px,py)=>drawEnemyBody(look,px,py),b.x,b.y,b.s);ctx.restore();
   // fair warning: a "!" during every wind-up, and red marks where a leap, drop or shard will land
@@ -2190,85 +2293,135 @@ function drawEnemyBody(e,x,y){
   const blob=(bx,by,r,col)=>{ctx.fillStyle=col;for(let dy=-r;dy<=r;dy++){const hw=Math.round(Math.sqrt(r*r-dy*dy));ctx.fillRect(x+bx-hw,y+by+dy,hw*2,1)}};
   const E=(col,cx,cy,rx,ry)=>{ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(d>0?x+cx:x+w-cx,y+cy,rx,ry,0,0,7);ctx.fill()};
   const Pg=(col,pts)=>{ctx.fillStyle=col;ctx.beginPath();pts.forEach(([px,py],i)=>{const X=d>0?x+px:x+w-px;i?ctx.lineTo(X,y+py):ctx.moveTo(X,y+py)});ctx.closePath();ctx.fill()};
+  const X=px=>d>0?x+px:x+w-px,far=f?'#cfcfcf':K.dk2,air=e.onGround===false;
+  const mv=(e.x!==undefined?e.x:t*30)*d,gaitU=(st,ph=0)=>mv/(2*st)+ph;
+  // a two-bone leg from the hip to a foot planted by the gait (bend -1: knee forward, 1: knee back); airborne legs tuck
+  const LEG=(hx,hy,l1,l2,ph,st,lift,w1,w2,col,bend=-1,foot=0,gy=h,col2)=>{let fx,fy;
+    if(air){fx=hx+(bend<0?.3:-.3)*(l1+l2);fy=hy+(l1+l2)*.6}else{const g=gaitFoot(gaitU(st,ph),st,lift);fx=hx+g[0];fy=gy+g[1]}
+    const[kx,ky,ax,ay]=ik2(hx,hy,fx,fy,l1,l2,bend);seg(X(hx),y+hy,X(kx),y+ky,w1,col);seg(X(kx),y+ky,X(ax),y+ay,w2,col2||col);
+    if(foot)seg(X(ax),y+ay,X(ax+foot),y+ay,w2,col2||col);return[ax,ay]};
+  const ARM=(sx,sy,tx,ty,l1,l2,w1,w2,col,bend=1)=>{const[ex,ey,hx,hy]=ik2(sx,sy,tx,ty,l1,l2,bend);seg(X(sx),y+sy,X(ex),y+ey,w1,col);seg(X(ex),y+ey,X(hx),y+hy,w2,col);return[hx,hy]};
+  // a jointed wing: shoulder, elbow, wingtip, and the trailing edge back to the body
+  const WING=(sx,sy,a1,L1,a2,L2,col,bone,back=[0,3])=>{const ex=sx+Math.cos(a1)*L1,ey=sy+Math.sin(a1)*L1,tx=ex+Math.cos(a2)*L2,ty=ey+Math.sin(a2)*L2,cx=(sx+tx)*.5-2.5+back[0],cy=Math.max(sy+back[1],(sy+ty)*.5+3);
+    Pg(col,[[sx,sy],[ex,ey],[tx,ty],[cx,cy],[sx+.5,sy+2]]);if(bone){seg(X(sx),y+sy,X(ex),y+ey,.9,bone);seg(X(ex),y+ey,X(tx),y+ty,.7,bone);seg(X(ex),y+ey,X(cx),y+cy,.5,bone)}return[ex,ey,tx,ty]};
   const zap=(pts,col)=>{ctx.strokeStyle=col;ctx.lineWidth=.8;ctx.beginPath();pts.forEach(([px,py],i)=>{const X=d>0?x+px:x+w-px;i?ctx.lineTo(X,y+py):ctx.moveTo(X,y+py)});ctx.stroke()};
   switch(K.look){
-   case'shark':{const sw=Math.sin(t*10);
-     Pg(c,[[0,1.5+sw],[5,4],[0,7-sw]]);E(c,10,4.5,8,3.4);E(lt,11,3.1,6,1.1);E('#c8d4dc',11.5,6,5.5,1.2);
-     Pg(dk,[[8,1.6],[10.5,-3.5],[13,1.6]]);R(ink,13,5.7,5,.7);R('#ffffff',14,5,1,1);R('#ffffff',16,5,1,1);
+   case'shark':{const ta=Math.sin(t*10)*.5,rp=(px,py)=>[5+(px-5)*Math.cos(ta)-(py-4)*Math.sin(ta),4+(px-5)*Math.sin(ta)+(py-4)*Math.cos(ta)];
+     Pg(c,[rp(-.5,1),[5,3.4],[5,4.6],rp(-.5,7)]);E(c,10,4.5,8,3.4);E(lt,11,3.1,6,1.1);E('#c8d4dc',11.5,6,5.5,1.2);
+     Pg(dk,[[8,1.6],[10.5,-3.5],[13,1.6]]);Pg(dk,[[11,6.4],[9+Math.sin(t*6)*.8,9.4],[12.6,6.8]]);R(ink,13,5.7,5,.7);R('#ffffff',14,5,1,1);R('#ffffff',16,5,1,1);
      R('#ff8a30',14.4,3,1.8,1.2);R('#ff4020',7,2.4,1,1);R('#ff4020',9,3.4,1,.8);break}
-   case'croc':{const st=Math.sin(t*12)>0?1:0;R(dk,3+st,6.5,2.4,2.6);R(dk,13-st,6.5,2.4,2.6);
-     Pg(c,[[0,4.6],[5,3],[12,2.6],[15,1.4],[18,2.4],[22,4.2],[22,6.4],[15,7.4],[4,7.2]]);// body, raised head, long snout
+   case'croc':{const sw=Math.sin(t*6)*1.1;
+     LEG(5,6,1.9,1.9,.5,3,1.2,1.7,1.4,far,1,.8,9);LEG(15,5.8,1.9,1.9,0,3,1.2,1.7,1.4,far,-1,.8,9);
+     Pg(c,[[0,4.6+sw],[5,3],[12,2.6],[15,1.4],[18,2.4],[22,4.2],[22,6.4],[15,7.4],[4,7.2]]);// body, raised head, long snout
+     LEG(3.5,6.4,1.9,1.9,0,3,1.2,2,1.6,dk,1,.8,9);LEG(13.5,6.2,1.9,1.9,.5,3,1.2,2,1.6,dk,-1,.8,9);
      for(let i=0;i<4;i++)Pg(dk,[[3+i*2.6,3.4],[4.2+i*2.6,1.6],[5.4+i*2.6,3.2]]);// ridged back
      E(c,15.4,2,1.7,1.3);R(lt,5,4,8,.8);R(dk,14,5.2,8,.7);R('#ff8a30',14.8,1.4,1.8,1.2);R(ink,15.4,1.6,.7,.8);
      R('#ffffff',16.6,5.9,1,1.1);R('#ffffff',18.4,5.9,1,1.1);R('#ffffff',20.2,5.9,.9,1.1);R(lt,16,3.2,5,.6);
      if(K.storm&&Math.sin(t*9)>.4)zap([[5,0],[6.5,2.5],[5.5,3.5],[7,6]],'#ffe060');break}
-   case'rhino':{const st=Math.sin(t*10)>0?1:0;R(dk,3+st,10,3,3);R(dk,12-st,10,3,3);R(dk,7-st,10,2,3);R(dk,15+st,10,2,3);
-     E(c,9,7,9,4.5);E(c,16,7,4,3.4);E(lt,8,4.4,6,1.2);
-     Pg(lt,[[18,5],[21.5,0],[20,6]]);Pg('#e8dcc0',[[16,4.6],[17.4,2],[17.8,5]]);R(dk,13,2,2,2);R('#ff6040',16,6,1,1);
+   case'rhino':{const hb=air?0:Math.sin(gaitU(3.5)*Math.PI*4)*.45;
+     LEG(5,9,2.4,2.4,.5,3.5,1.4,2.6,2.2,far,1);LEG(14.5,9,2.4,2.4,0,3.5,1.4,2.6,2.2,far,-1);
+     E(c,9,7,9,4.5);E(lt,8,4.4,6,1.2);
+     LEG(3,9.5,2.4,2.4,0,3.5,1.4,3,2.5,dk,1);LEG(12.5,9.5,2.4,2.4,.5,3.5,1.4,3,2.5,dk,-1);
+     y+=hb;E(c,16,7,4,3.4);Pg(lt,[[18,5],[21.5,0],[20,6]]);Pg('#e8dcc0',[[16,4.6],[17.4,2],[17.8,5]]);R('#ff6040',16,6,1,1);y-=hb;R(dk,13,2,2,2);
      if(K.storm){zap([[5,4],[6,6],[5,7.5],[7,9]],'#ff9a40');zap([[10,3],[11,5]],'#ff9a40')}
-     if(K.moss){R('#5a9a3a',4,2.6,8,1.2);R('#4a8a2a',6,1.8,4,1);R('#7aba4a',14,3.4,2,1);Pg('#4a8a2a',[[19,1],[22,-1],[20,2]])}break}
-   case'lizard':{Pg(c,[[0,8],[5,6],[12,5],[16,6],[16,8.4],[12,9],[4,9.6]]);R(dk,5,9,2,2);R(dk,10,9,2,2);E(c,13,5.6,3.5,2.6);R(lt,8,6,4,.9);
-     for(let i=0;i<5;i++){const a=-2.5+i*.48;Pg(i%2?'#ffd860':'#ffa030',[[12,4.5],[12+Math.cos(a)*7,4.5+Math.sin(a)*6],[12+Math.cos(a+.22)*6,4.5+Math.sin(a+.22)*5]])}
+     if(K.moss){R('#5a9a3a',4,2.6,8,1.2);R('#4a8a2a',6,1.8,4,1);R('#7aba4a',14,3.4,2,1);Pg('#4a8a2a',[[19,1+hb],[22,-1+hb],[20,2+hb]])}break}
+   case'lizard':{const tl=Math.sin(t*5)*1.2;
+     LEG(5.5,8.4,1.9,1.9,.5,2.6,1.3,1.5,1.2,far,1,.7,11);LEG(12.5,8,1.9,1.9,0,2.6,1.3,1.5,1.2,far,-1,.7,11);
+     Pg(c,[[0,8+tl],[5,6],[12,5],[16,6],[16,8.4],[12,9],[4,9.6]]);E(c,13,5.6,3.5,2.6);R(lt,8,6,4,.9);
+     LEG(4,8.8,1.9,1.9,0,2.6,1.3,1.8,1.4,dk,1,.7,11);LEG(11,8.6,1.9,1.9,.5,2.6,1.3,1.8,1.4,dk,-1,.7,11);
+     for(let i=0;i<5;i++){const a=-2.5+i*.48+Math.sin(t*3)*.08;Pg(i%2?'#ffd860':'#ffa030',[[12,4.5],[12+Math.cos(a)*7,4.5+Math.sin(a)*6],[12+Math.cos(a+.22)*6,4.5+Math.sin(a+.22)*5]])}
      R('#ff6020',14,4.6,1.2,1.2);R(ink,15.4,7,1,.6);break}
-   case'bear':{const st=Math.sin(t*8)>0?1:0;R(dk,3+st,13,4,3);R(dk,12-st,13,4,3);
-     E(c,9,9,9,6);E(lt,8,5,6,2);E(c,15,6,5,4.5);E(dk,12.5,2.5,1.9,1.9);E(dk,17.5,2.5,1.9,1.9);E(c,12.5,2.8,1,1);
-     E(K.snout||'#c8b090',18,7.6,2.4,1.8);R(ink,19.4,6.6,1.2,1);R(K.eye||'#ff8a30',15,5,1.2,1.2);R(K.eye||'#ff8a30',17.4,5,1,1);R(dk,1,8,1,4);
+   case'bear':{const hb=air?0:Math.sin(gaitU(3.5)*Math.PI*4)*.5;
+     LEG(5,12,2.3,2.3,.5,3.5,1.6,3,2.6,far,1);LEG(14.5,12,2.3,2.3,0,3.5,1.6,3,2.6,far,-1);
+     E(c,9,9,9,6);E(lt,8,5,6,2);R(dk,1,8,1,4);
+     LEG(3.5,12.5,2.3,2.3,0,3.5,1.6,3.6,3,dk,1);LEG(13,12.5,2.3,2.3,.5,3.5,1.6,3.6,3,dk,-1);
+     y+=hb;E(c,15,6,5,4.5);E(dk,12.5,2.5,1.9,1.9);E(dk,17.5,2.5,1.9,1.9);E(c,12.5,2.8,1,1);
+     E(K.snout||'#c8b090',18,7.6,2.4,1.8);R(ink,19.4,6.6,1.2,1);R(K.eye||'#ff8a30',15,5,1.2,1.2);R(K.eye||'#ff8a30',17.4,5,1,1);y-=hb;
      if(K.storm&&Math.sin(t*11)>.2){zap([[4,1],[7,5],[5,7],[8,12]],'#cfe8ff');zap([[11,0],[12,3]],'#cfe8ff')}
      if(K.moss){R('#5a8a3a',4,3.4,8,1.3);R('#7aaa4a',6,2.6,3,1);R('#4a7a2a',13,1.6,2,1)}break}
-   case'panther':{const st=Math.sin(t*16)>0?1:0,tl=Math.sin(t*4)*2;R(dk,3+st,7,2,3);R(dk,6.5-st,7,2,3);R(dk,12.5+st,7,2,3);R(dk,15.5-st,7,2,3);
-     Pg(c,[[2,4],[7,2.4],[13,2.6],[15.5,1.2],[19,1.6],[21,3.8],[20,5.6],[17,6.4],[15,8],[6,8],[3,7]]);// long body, deep chest, head
-     Pg(c,[[3,4.6],[-3,2+tl],[-4.6,tl],[2,5.8]]);Pg(dk,[[15.8,1.6],[16.4,-.8],[17.4,1.4]]);Pg(dk,[[17.8,1.4],[18.8,-.6],[19.4,1.8]]);
-     R(lt,5,3,9,.8);R(lt,16,2,3,.6);R(dk,10,6.6,5,.8);R(K.eye||'#80ff80',17.6,2.6,1.6,1);R(ink,20.4,4,.8,.8);R(ink,19,5,2,.5);
+   case'panther':{const sp=air?0:Math.sin(gaitU(5)*Math.PI*2)*.6,tl=Math.sin(t*4)*2;// a gallop: hind legs together, then front legs, the spine flexing between
+     LEG(5,6,2.2,2.2,.12,5,2,2,1.6,far,1,0,10);LEG(16.5,6,2.2,2.2,.62,5,2,2,1.6,far,-1,0,10);
+     seg(X(3),y+4.6,X(-.8),y+2.8+tl*.4,1.8,c);seg(X(-.8),y+2.8+tl*.4,X(-4.4),y+tl,1.3,c);// a two-jointed tail
+     Pg(c,[[2,4],[7,2.4+sp],[13,2.6-sp],[15.5,1.2],[19,1.6],[21,3.8],[20,5.6],[17,6.4],[15,8],[6,8],[3,7]]);// long body, deep chest, head
+     Pg(dk,[[15.8,1.6],[16.4,-.8],[17.4,1.4]]);Pg(dk,[[17.8,1.4],[18.8,-.6],[19.4,1.8]]);
+     LEG(3.5,6.5,2.2,2.2,0,5,2,2.2,1.8,dk,1,0,10);LEG(15,6.5,2.2,2.2,.5,5,2,2.2,1.8,dk,-1,0,10);
+     R(lt,5,3+sp*.5,9,.8);R(lt,16,2,3,.6);R(dk,10,6.6,5,.8);R(K.eye||'#80ff80',17.6,2.6,1.6,1);R(ink,20.4,4,.8,.8);R(ink,19,5,2,.5);
      if(K.storm&&Math.sin(t*13)>.2){zap([[6,.5],[7.5,3],[6.5,4],[8.5,6.5]],'#e0f0ff');zap([[12,1],[13,3]],'#e0f0ff')}
      if(K.thorn){R('#5a9a2a',5,1.6,1,1.2);R('#5a9a2a',9,1.4,1,1.2);R('#5a9a2a',13,1.6,1,1.2);R('#c04040',10,1.4,1,.8)}break}
    case'serpent':{for(let i=0;i<7;i++)E(i%2?c:dk,2+i*2.6,9+Math.sin(t*3+i*.9)*3,3.2,3.2);
      E(c,19,6,4.6,3.7);Pg(c,[[21,5],[25.5,7],[21,8.6]]);Pg(lt,[[16,3],[19,-2.5],[20.5,3]]);Pg(dk,[[8,6],[11,1],[13,7]]);
      E(lt,18,4,3,1);R('#a0f0ff',20,4.4,1.5,1.5);R('#ffffff',22.5,7.4,1,1);R('#ffffff',24,7.2,.9,1);break}
-   case'kraken':{for(let i=0;i<6;i++){const tx=2+i*3.2,sw=Math.sin(t*4+i)*1.6;Pg(i%2?dk:c,[[tx,8],[tx+2.4,8],[tx+1.6+sw,16],[tx+.6+sw,16]])}
+   case'kraken':{for(let i=0;i<6;i++){let px=2.6+i*3.2,py=8,a=Math.PI/2+(i-2.5)*.1;const col=i%2?dk:c;// three-jointed tentacles that curl in a travelling wave
+       for(let k=0;k<3;k++){a+=Math.sin(t*4+i*1.1-k*.9)*.42;const nx=px+Math.cos(a)*2.9,ny=py+Math.sin(a)*2.9;seg(X(px),y+py,X(nx),y+ny,2.6-k*.6,col);px=nx;py=ny}}
      E(c,10,6,9,6.5);E(lt,8,3,5,2);R('#2a8a4a',3,4,1,6);R('#3aaa5a',15,3,1,5);R('#2a8a4a',11,.5,1,4);R('#4aca6a',6,1,1,3);
      for(let i=0;i<4;i++)R(dk,5+i*3,10.4,2,.7);E('#ff9a40',6.5,7,1.5,1.5);E('#ff9a40',13.5,7,1.5,1.5);E('#fff0c0',6.5,6.6,.6,.6);E('#fff0c0',13.5,6.6,.6,.6);break}
-   case'chimera':{const st=Math.sin(t*10)>0?1:0;R(dk,3+st,13,3,3);R(dk,13-st,13,3,3);
-     E(c,8,10,8,4.5);Pg(c,[[1,9],[-4,4+Math.sin(t*5)*2],[-3,2+Math.sin(t*5)*2],[2,8]]);E(dk,14,7,6,6.2);E(c,15.5,8,3.8,3.6);
+   case'chimera':{const hb=air?0:Math.sin(gaitU(3.5)*Math.PI*4)*.5;
+     LEG(5,12,2.3,2.3,.5,3.5,1.6,2.8,2.4,far,1);LEG(14.5,12,2.3,2.3,0,3.5,1.6,2.8,2.4,far,-1);
+     E(c,8,10,8,4.5);Pg(c,[[1,9],[-4,4+Math.sin(t*5)*2],[-3,2+Math.sin(t*5)*2],[2,8]]);
+     LEG(3.5,12.5,2.3,2.3,0,3.5,1.6,3.2,2.7,dk,1);LEG(13,12.5,2.3,2.3,.5,3.5,1.6,3.2,2.7,dk,-1);
+     y+=hb;E(dk,14,7,6,6.2);E(c,15.5,8,3.8,3.6);
      ctx.strokeStyle=lt;ctx.lineWidth=1.6;for(const hx of[12,17]){ctx.beginPath();ctx.arc(d>0?x+hx:x+w-hx,y+2,3,Math.PI*.9,Math.PI*2.1);ctx.stroke()}
-     R('#ffb040',14.4,7,1.3,1);R('#ffb040',17,7,1.3,1);R(ink,18,9.6,1.4,1);
+     R('#ffb040',14.4,7,1.3,1);R('#ffb040',17,7,1.3,1);R(ink,18,9.6,1.4,1);y-=hb;
      if(Math.sin(t*12)>.3){zap([[3,4],[5,6],[4,8],[6,10]],'#ffe080');zap([[10,3],[11,6]],'#ffe080')}break}
-   case'gorilla':{const st=Math.sin(t*8)>0?1:0;R(dk,5,13,3,3);R(dk,11,13,3,3);
-     E(c,9,8,8,6);E(dk,15.5,10+st,2.8,5);E(dk,3,10-st,2.6,5);E(c,13,4,4.5,4);E(lt,13,1.8,3.6,1.6);
+   case'gorilla':{const u=gaitU(3),hb=air?0:Math.sin(u*Math.PI*4)*.5;
+     // knuckle-walking: shoulder, elbow and fist on the ground, swinging with the gait
+     const knuckle=(sx,sy,ph,col,w1,w2)=>{let tx,ty;if(air){tx=sx+3;ty=sy+4}else{const g=gaitFoot(u+ph,3,1.8);tx=sx+1.5+g[0];ty=h-1+g[1]}
+       const[hx,hy]=ARM(sx,sy,tx,ty,4.8,4.4,w1,w2,col,1);ctx.fillStyle=col;circle(X(hx),y+hy,w2*.75)};
+     knuckle(13,6.5+hb,.5,far,3,2.6);LEG(7,12,2.2,2.2,0,3,1.4,3,2.6,far,-1);
+     E(c,9,8+hb*.5,8,6);
+     LEG(10.5,12.5,2.2,2.2,.5,3,1.4,3.2,2.8,dk,-1);
+     y+=hb;E(c,13,4,4.5,4);E(lt,13,1.8,3.6,1.6);
      R('#4a8a2a',10,-.4,6,1.4);R('#6aaa3a',11,-1.4,3,1);R('#4a8a2a',4,3,3,1);R('#6aaa3a',6,2,2,1);
-     E(lt,14.5,5.6,2.8,2);R('#ff3020',13,3.6,1,1);R('#ff3020',15.4,3.6,1,1);R(ink,14.2,6,1.4,.8);break}
-   case'wyvern':{const fl=Math.sin(t*9);
-     Pg(dk,[[8,6],[2,-4-fl*4],[0,4+fl*2],[6,8]]);E(c,10,8,6,3.5);Pg(c,[[5,8],[-2,11],[-4,9],[5,9.5]]);
-     E(c,16,5,3.4,2.6);Pg(c,[[18,4],[23,5.5],[18,6.6]]);Pg(lt,[[14.5,3],[15,-1.5],[16.6,3]]);Pg(c,[[12,6],[18,-4-fl*4],[20,3+fl*2],[13,8]]);
-     R('#ff4030',17,4,1,1);R('#4a9a3a',8,6,4,1);R('#6aba4a',9,5,2,1);R('#4a9a3a',14,0,1,2);break}
-   case'roc':{const fl=Math.sin(t*(e.run?14:5));
-     Pg(dk,[[6,5],[-2,-3-fl*5],[2,6]]);E(c,10,7,7,4);Pg(c,[[3,6],[-3,8],[-2,10.5],[4,8.5]]);
-     E(c,16,4,3.4,3);Pg('#e8c060',[[18,3.5],[22.5,5],[18.5,6]]);Pg('#c89030',[[18.5,5.2],[21,5.6],[18.6,6]]);R('#ffffff',16.4,3,1,1);
-     Pg(lt,[[7,5],[15,-4-fl*6],[13,6]]);R(dk,8,11,1,3);R(dk,12,11,1,3);R('#e8c060',7,13.4,3,.8);R('#e8c060',11,13.4,3,.8);
+     E(lt,14.5,5.6,2.8,2);R('#ff3020',13,3.6,1,1);R('#ff3020',15.4,3.6,1,1);R(ink,14.2,6,1.4,.8);y-=hb;
+     knuckle(15.5,7+hb,0,dk,3.6,3.2);break}
+   case'wyvern':{const fl=Math.sin(t*9),fl2=Math.sin(t*9-.8),ts=Math.sin(t*4)*1.3;
+     WING(8,6,-2.2+fl*.75,7.5,-2.75+fl2*.6,6.5,dk,null,[-1,3]);
+     for(const[lx,ph,cl]of[[9,0,far],[11.5,1.4,dk]]){const sw=Math.sin(t*3+ph)*.8;ARM(lx,10,lx-1+sw,14.5,2.4,2.4,1.6,1.3,cl,1);}// legs dangle under it
+     E(c,10,8,6,3.5);Pg(c,[[5,8],[-2,11+ts],[-4,9+ts],[5,9.5]]);
+     E(c,16,5,3.4,2.6);Pg(c,[[18,4],[23,5.5],[18,6.6]]);Pg(lt,[[14.5,3],[15,-1.5],[16.6,3]]);
+     R('#ff4030',17,4,1,1);R('#4a9a3a',8,6,4,1);R('#6aba4a',9,5,2,1);R('#4a9a3a',14,0,1,2);
+     WING(12,6,-1.75+fl*.8,7.5,-2.25+fl2*.65,7.5,c,dk,[0,3]);break}
+   case'roc':{const sp=e.run?14:5,fl=Math.sin(t*sp),fl2=Math.sin(t*sp-.8),ts=Math.sin(t*3)*.8,hb=air||!e.run?0:Math.sin(gaitU(3)*Math.PI*4)*.4;
+     WING(6,5,-2.3+fl*.8,6,-2.8+fl2*.6,6,dk,null,[-1,3]);
+     LEG(9.5,10.5,2,2,.5,3,1.6,1.2,1,'#a07830',1,1.4,14.2);
+     E(c,10,7,7,4);Pg(c,[[3,6],[-3,8+ts],[-2,10.5+ts],[4,8.5]]);
+     y+=hb;E(c,16,4,3.4,3);Pg('#e8c060',[[18,3.5],[22.5,5],[18.5,6]]);Pg('#c89030',[[18.5,5.2],[21,5.6],[18.6,6]]);R('#ffffff',16.4,3,1,1);y-=hb;
+     LEG(12,10.5,2,2,0,3,1.6,1.4,1.2,'#d8a850',1,1.6,14.2);
+     WING(8,5,-1.9+fl*.85,7,-2.4+fl2*.7,7.5,lt,dk,[0,3]);
      if(Math.sin(t*11)>.5)zap([[4,0],[5,2],[4,3],[6,5]],'#ffffa0');break}
-   case'bug':{const step=Math.sin(t*14)>0?1:0;
-     for(let i=0;i<3;i++){const lx=3+i*((w-7)/2|0),o=i%2?step:1-step;R(dk,lx+o,7,1,2);R(dk,lx+o,9,2,1)}
+   case'bug':{const gap=(w-7)/2;// six legs in a tripod gait, knees cocked up like an insect's
+     for(let i=0;i<3;i++)LEG(3.5+i*gap,6,2.4,2.4,i%2?0:.5,2.6,1.5,1.1,.9,far,i===0?1:-1);
+     const bb=air?0:Math.abs(Math.sin(gaitU(2.6)*Math.PI*2))*.5;y-=1+bb;
      R(dk,1,4,w-4,4);R(c,1,3,w-5,4);R(c,2,2,w-7,1);R(c,4,1,w-11,1);
      R(lt,3,2,w-10,1);R(lt,2,3,2,1);R(dk,(w-5)/2|0,2,1,5);
      R(dk,w-5,4,4,4);R(c,w-4,4,3,3);R(e.k==='magma'?'#ffd040':'#ffffff',w-3,5,1,1);
+     seg(X(w-2),y+4.4,X(w+1.2),y+2.6+Math.sin(t*9)*.9,.7,dk);y+=1+bb;
+     for(let i=0;i<3;i++)LEG(2.5+i*gap,6.6,2.4,2.4,i%2?.5:0,2.6,1.5,1.3,1,dk,i===0?1:-1);
      if(e.k==='beetle'){R(lt,w-2,2,1,2);R(lt,w-1,1,1,2)}
      if(e.k==='crawler'){R(dk,3,0,2,2);R(dk,7,0,2,2);R(dk,11,1,2,1)}
      if(e.k==='magma'){R(Math.sin(t*10)>0?'#ffd060':'#ff8a30',4,3,w-10,1);R('#ff8a30',6,5,3,1)}
      break}
-   case'wing':{const up=Math.sin(t*24)>0,cx=w/2|0,wc=e.k==='fly'?'rgba(225,235,255,.75)':e.k==='bat'?dk:lt;
-     ctx.fillStyle=wc;
-     if(up){ctx.fillRect(x,y,cx-1,2);ctx.fillRect(x+1,y+2,cx-2,2);ctx.fillRect(x+cx+1,y,cx-1,2);ctx.fillRect(x+cx+1,y+2,cx-2,2)}
-     else{ctx.fillRect(x,y+5,cx-1,2);ctx.fillRect(x+1,y+3,cx-2,2);ctx.fillRect(x+cx+1,y+5,cx-1,2);ctx.fillRect(x+cx+1,y+3,cx-2,2)}
-     if(e.k==='moth'){ctx.fillStyle=dk;ctx.fillRect(x+2,y+(up?1:4),2,2);ctx.fillRect(x+w-4,y+(up?1:4),2,2)}
+   case'wing':{const cx=w/2,sp=e.k==='bat'?16:24,fl=Math.sin(t*sp),fl2=Math.sin(t*sp-.9),wc=e.k==='fly'?'rgba(225,235,255,.75)':e.k==='bat'?dk:lt;
+     // each wing has a shoulder and a wrist: the wrist lags behind, so the tip whips through every beat
+     for(const sd of[-1,1]){const sx=cx+sd*1.2,sy=2.6,L1=cx*.5+.6,L2=cx*.55+.6,a1=fl*.9,a2=a1+fl2*.6;
+       const ex=sx+sd*Math.cos(a1)*L1,ey=sy-Math.sin(a1)*L1,tx=ex+sd*Math.cos(a2)*L2,ty=ey-Math.sin(a2)*L2,bx=sx+sd*L1*.6,by=sy+3.2-fl*1.2;
+       ctx.fillStyle=wc;ctx.beginPath();ctx.moveTo(x+sx,y+sy);ctx.lineTo(x+ex,y+ey);ctx.lineTo(x+tx,y+ty);ctx.lineTo(x+bx,y+by);ctx.lineTo(x+sx,y+sy+2);ctx.closePath();ctx.fill();
+       if(e.k==='bat'){seg(x+sx,y+sy,x+ex,y+ey,.8,ink);seg(x+ex,y+ey,x+tx,y+ty,.6,ink);seg(x+ex,y+ey,x+bx,y+by,.5,ink)}
+       if(e.k==='moth'){ctx.fillStyle=dk;ctx.fillRect(x+ex-1,y+ey,2,2)}}
      if(e.k==='bat'){ctx.fillStyle=c;ctx.fillRect(x+cx-2,y-1,1,2);ctx.fillRect(x+cx+1,y-1,1,2)}
      ctx.fillStyle=c;ctx.fillRect(x+cx-2,y+1,4,h-2);ctx.fillStyle=dk;ctx.fillRect(x+cx-2,y+h-3,4,1);
-     if(e.k==='moth'){ctx.fillStyle=lt;ctx.fillRect(x+cx-2,y-2,1,3);ctx.fillRect(x+cx+1,y-2,1,3)}
+     if(e.k==='moth'){seg(x+cx-1.5,y+1,x+cx-3,y-2+Math.sin(t*7)*.6,.6,lt);seg(x+cx+1.5,y+1,x+cx+3,y-2+Math.sin(t*7+1)*.6,.6,lt)}
      ctx.fillStyle='#ff4060';ctx.fillRect(x+cx-2,y+2,1,1);ctx.fillRect(x+cx+1,y+2,1,1);break}
-   case'husk':{const ph=Math.round(Math.sin(t*8)*1.5),glow=e.boss?'#ff5050':'#ffe0a0';
-     R(dk,3+ph,16,2,4);R(dk,7-ph,16,2,4);R(ink,2+ph,19,3,1);R(ink,6-ph,19,3,1);
-     R(dk,1,8,10,9);R(c,2,9,8,7);R(dk,4,10,1,6);R(dk,7,11,1,5);R(dk,0,15,2,2);R(dk,10,14,2,3);
-     R('#9a8a6a',10,11,12,1);R('#d8d0b0',21,10,3,3);R('#d8d0b0',24,11,1,1);R(c,9,10,3,3);
+   case'husk':{const u=gaitU(3.5),bob=air?0:.5-Math.abs(Math.sin(u*Math.PI*2))*.9,glow=e.boss?'#ff5050':'#ffe0a0',sw=air?-1.5:gaitFoot(u,3.5,0)[0];
+     ARM(3,10+bob,3-sw*.8,15.8+bob,3.2,3.2,1.8,1.5,far,1);// the free arm swings against the stride
+     LEG(4,15.5,2.6,2.6,.5,3.5,1.6,2.2,1.8,far,-1,1,20);
+     y+=bob;R(dk,1,8,10,9);R(c,2,9,8,7);R(dk,4,10,1,6);R(dk,7,11,1,5);R(dk,0,15,2,2);R(dk,10,14,2,3);
      R(lt,1,1,10,8);R(lt,2,0,8,1);R(c,1,6,10,2);R(dk,0,2,1,4);R(dk,11,2,1,4);R(dk,0,-1,2,2);R(dk,10,-1,2,2);
-     R(ink,3,3,2,3);R(ink,7,3,2,3);R(glow,4,4,1,1);R(glow,8,4,1,1);break}
+     R(ink,3,3,2,3);R(ink,7,3,2,3);R(glow,4,4,1,1);R(glow,8,4,1,1);y-=bob;
+     LEG(7,15.5,2.6,2.6,0,3.5,1.6,2.4,2,dk,-1,1,20);
+     const hy=11.5+bob+(e.boss?Math.sin(t*3)*.7:Math.sin(u*Math.PI*4)*.3);// the sword arm holds the blade level
+     R('#9a8a6a',10,hy,12,1);R('#d8d0b0',21,hy-1,3,3);R('#d8d0b0',24,hy,1,1);
+     ARM(8,9.5+bob,10.5,hy+.5,3,3,2.2,2,c,1);R(c,9.5,hy-1,2.5,2.5);break}
    case'ghost':{const cx=w/2,cy=h/2,wob=Math.floor(t*8);
      if(e.k==='shard'){for(let r=0;r<h;r++){const hw=Math.max(1,Math.round(cx*(1-Math.abs(r-cy+.5)/cy)));ctx.fillStyle=c;ctx.fillRect(x+cx-hw,y+r,hw*2,1);ctx.fillStyle=lt;ctx.fillRect(x+cx-hw,y+r,Math.ceil(hw*.6),1)}
        ctx.fillStyle='#ffffff';ctx.fillRect(x+cx-1,y+cy-1,2,2);break}
@@ -2278,20 +2431,31 @@ function drawEnemyBody(e,x,y){
      ctx.fillStyle=lt;ctx.fillRect(x+cx-3,y+1,3,1);
      ctx.fillStyle=ink;ctx.fillRect(x+cx-3+(d>0?1:0),y+cy-2,2,3);ctx.fillRect(x+cx+1+(d>0?1:0),y+cy-2,2,3);break}
    case'frog':{
-     if(e.k==='imp'){blob(w/2,h/2+1,w/2-1,c);R(dk,1,0,2,3);R(dk,w-3,0,2,3);R(lt,3,h/2+1,w-6,3);R('#2060c0',3,4,2,2);R('#2060c0',w-5,4,2,2);
-       R(dk,2,h-1,3,1);R(dk,w-5,h-1,3,1);if(!e.onGround){R(c,-1,5,2,2);R(c,w-1,5,2,2)}break}
-     if(!e.onGround){R(dk,-2,7,4,2);R(dk,-1,8,3,2)}else R(dk,0,6,4,4);
+     if(e.k==='imp'){const up=!e.onGround;
+       for(const sd of[-1,1]){const sx=sd<0?1.5:w-1.5,ox=sd<0?-1:1;// little arms: down at its sides, waving overhead mid-jump
+         const[ex,ey,hx,hy]=ik2(sx,6,sx+ox*(up?2.5:1.5),up?1.5+Math.sin(t*16+sd)*1.2:9,2.2,2.2,sd<0?1:-1);seg(x+sx,y+6,x+ex,y+ey,1.4,c);seg(x+ex,y+ey,x+hx,y+hy,1.2,c)}
+       blob(w/2,h/2+1,w/2-1,c);R(dk,1,0,2,3);R(dk,w-3,0,2,3);R(lt,3,h/2+1,w-6,3);R('#2060c0',3,4,2,2);R('#2060c0',w-5,4,2,2);
+       for(const lx of[3.5,w-3.5]){const[kx,ky,ax,ay]=ik2(lx,h-3,lx+(up?-1.5:0),up?h-.5:h,1.6,1.6,-1);seg(X(lx),y+h-3,X(kx),y+ky,1.4,dk);seg(X(kx),y+ky,X(ax),y+ay,1.4,dk)}
+       break}
+     // the hind leg folds up tight on the ground and flings out straight behind in a leap
+     const hind=(hx,hy,col,wd)=>{const[kx,ky,ax,ay]=ik2(hx,hy,air?hx-7:hx-1.2,air?hy+3.4:10,3.3,3.3,-1);
+       seg(X(hx),y+hy,X(kx),y+ky,wd+.6,col);seg(X(kx),y+ky,X(ax),y+ay,wd,col);seg(X(ax),y+ay,X(ax-(air?2.2:2.6)),y+ay+(air?.8:0),wd*.8,col)};
+     hind(4,6,far,1.6);
      R(c,1,3,w-2,6);R(c,2,2,w-4,1);R(lt,3,7,w-6,2);R(dk,3,4,2,1);R(dk,7,3,2,1);
      R(c,w-5,0,4,3);R(c,w-9,0,4,3);R(lt,w-5,0,2,1);R(ink,w-3,1,2,1);R(ink,w-7,1,2,1);
-     R(dk,w-6,6,5,1);R(dk,w-3,9,3,1);break}
-   case'spider':{const cx=w/2|0,cy=h/2|0;
-     ctx.fillStyle=dk;
-     for(const sd of[-1,1])for(let i=0;i<4;i++){const ph=Math.sin(t*16+i*1.6+(sd>0?1:0))>0?1:0,kx=cx+sd*(w/2-1+(i===1||i===2?2:0)),ky=cy-3+(i%2)+ph,ex=cx+sd*3;
-       ctx.fillRect(x+Math.min(ex,kx),y+ky,Math.abs(kx-ex)+1,1);ctx.fillRect(x+kx,y+ky,1,4+(i===1||i===2?1:0)-ph)}
-     const ab=cx-2*d,hd=cx+3*d;blob(ab,cy,Math.max(2,cy),c);blob(hd,cy,2,dk);
-     ctx.fillStyle='#d03040';ctx.fillRect(x+ab-1,y+cy-1,2,1);ctx.fillRect(x+ab,y+cy,1,1);
-     ctx.fillStyle=lt;ctx.fillRect(x+ab-2,y+cy-cy+1,2,1);
-     ctx.fillStyle='#ff3050';ctx.fillRect(x+hd+d,y+cy-1,1,1);ctx.fillRect(x+hd+d,y+cy+1,1,1);break}
+     R(dk,w-6,6,5,1);
+     ARM(w-4.5,7,w-4+(air?2:0),air?9:10,1.7,1.7,1.4,1.2,dk,1);
+     hind(3,6.5,dk,1.9);break}
+   case'spider':{const cx=w/2,cy=h/2,hang=e.state==='hang'||e.state==='fall';
+     // eight legs, knees high above the body, stepping in two alternating sets
+     for(const sd of[-1,1])for(let i=0;i<4;i++){const hx=cx+sd*.8,hy=cy-1.4+i*.35,spread=w/2+1+(i===1||i===2?1.2:0)-(i===3?.8:0);
+       let fx,fy;if(hang){fx=cx+sd*spread*.65;fy=cy+2.4+Math.sin(t*7+i*1.3)*.8}
+       else{const g=gaitFoot(gaitU(2.4,(i%2?.5:0)+(sd>0?0:.5)),2.4,1.4);fx=cx+sd*spread+g[0];fy=h+g[1]}
+       const l=spread*.74,[kx,ky,ax,ay]=ik2(hx,hy,fx,fy,l,l,sd>0?-1:1);seg(X(hx),y+hy,X(kx),y+ky,1,dk);seg(X(kx),y+ky,X(ax),y+ay,.9,dk)}
+     const ab=cx-2,hd=cx+3;blob(X(ab)-x,cy,Math.max(2,cy),c);blob(X(hd)-x,cy,2,dk);
+     ctx.fillStyle='#d03040';ctx.fillRect(X(ab)-1,y+cy-1,2,1);ctx.fillRect(X(ab),y+cy,1,1);
+     ctx.fillStyle=lt;ctx.fillRect(X(ab)-2,y+1,2,1);
+     ctx.fillStyle='#ff3050';ctx.fillRect(X(hd+1),y+cy-1,1,1);ctx.fillRect(X(hd+1),y+cy+1,1,1);break}
    case'crystal':{const cx=w/2|0,glow=e.st>1.7;
      R('#3a3050',0,h-2,w,2);R(dk,1,h-3,w-2,1);
      R(c,0,h-8,2,5);R(c,w-2,h-9,2,6);
@@ -2321,11 +2485,12 @@ function drawEnemyBody(e,x,y){
      R(ink,w-6,2,4,3);R('#80ffd0',w-5,3,2,1);break}
    case'sentry':{const hot=e.st>1.7;R(dk,1,h-3,w-2,3);R(c,3,6,w-6,h-9);R(lt,3,6,1,h-9);R(dk,2,5,w-4,1);
      R(c,1,0,w-2,6);R(lt,2,0,w-4,1);R(ink,3,2,w-6,3);R(hot?'#ffffff':'#ffb040',(w/2|0)-1,3,3,1);R('#ffb040',w-2,2,2,1);break}
-   case'wolf':{const a=Math.sin(t*14)>0?1:0;
-     R(dk,3+a,9,2,3);R(dk,6-a,9,2,3);R(dk,13+a,9,2,3);R(dk,16-a,9,2,3);
-     R(c,-2,2,4,2);R(lt,-3,1,2,2);
+   case'wolf':{const hb=air?0:Math.sin(gaitU(4)*Math.PI*4)*.45,tw=Math.sin(t*9)*1.1;
+     LEG(5,8.5,1.9,1.9,.5,4,1.8,1.8,1.5,far,1,0,12);LEG(15.5,8.5,1.9,1.9,0,4,1.8,1.8,1.5,far,-1,0,12);
+     seg(X(2.5),y+4.5,X(-.4),y+3+tw*.5,2,c);seg(X(-.4),y+3+tw*.5,X(-3),y+1.6+tw,1.6,lt);// the tail, wagging from two joints
      R(c,2,4,14,6);R(dk,2,8,14,2);R(lt,4,3,2,1);R(lt,8,3,2,1);R(lt,11,3,2,1);R(lt,12,2,4,5);
-     R(c,14,1,6,5);R(c,19,3,3,2);R(ink,21,3,1,1);R(c,15,-1,2,2);R(dk,16,-1,1,1);R('#60c0ff',17,2,1,1);R(dk,18,5,3,1);break}}}
+     y+=hb;R(c,14,1,6,5);R(c,19,3,3,2);R(ink,21,3,1,1);R(c,15,-1,2,2);R(dk,16,-1,1,1);R('#60c0ff',17,2,1,1);R(dk,18,5,3,1);y-=hb;
+     LEG(3.5,9,1.9,1.9,0,4,1.8,2,1.7,dk,1,0,12);LEG(14,9,1.9,1.9,.5,4,1.8,2,1.7,dk,-1,0,12);break}}}
 function drawEnemy(e){
   const x=Math.round(e.x),y=Math.round(e.y);
   if(e.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(x+e.w/2,y+e.h+1,e.w/2+1,2,0,0,7);ctx.fill()}// contact shadow
@@ -2336,7 +2501,11 @@ function drawEnemy(e){
 function drawDragon(){const b=boss,cx=b.x+b.w/2,cy=b.y+b.h/2,fl=Math.sin(b.t*9),hurt=b.hurt>0,body=hurt?'#fff':'#8a1e1e',dark=hurt?'#eee':'#4a0e12',belly=hurt?'#fff':'#e09a40',horn='#d8c8a0';
   ctx.save();ctx.translate(Math.round(cx),Math.round(cy));ctx.scale(b.face,1);
   const poly=(p,c)=>{ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(p[0],p[1]);for(let i=2;i<p.length;i+=2)ctx.lineTo(p[i],p[i+1]);ctx.closePath();ctx.fill()};
-  poly([-4,-8,-22,-28-fl*12,-36,-22-fl*14,-30,-10,-16,-4],dark);
+  const fl2=Math.sin(b.t*9-.8);
+  // wings with a shoulder and a wrist: the hand lags the arm, so each beat folds and unfolds
+  const wing=(sx,sy,a1,L1,a2,L2,C,D,col,bone)=>{const ex=sx+Math.cos(a1)*L1,ey=sy+Math.sin(a1)*L1,tx=ex+Math.cos(a2)*L2,ty=ey+Math.sin(a2)*L2;
+    poly([sx,sy,ex,ey,tx,ty,C[0],C[1],D[0],D[1]],col);if(bone){seg(sx,sy,ex,ey,2,bone);seg(ex,ey,tx,ty,1.4,bone);seg(ex,ey,C[0],C[1],1,bone);seg(ex,ey,(tx+C[0])/2,(ty+C[1])/2,1,bone)}};
+  wing(-4,-8,-2.3-fl*.12,27*(1+fl*.4),2.74+fl2*.25,15,[-30,-10-fl2*4],[-16,-4],dark);
   poly([-18,0,-40,6+fl*2,-54,fl*3,-62,-6,-50,2,-38,-2,-18,-8],body);
   ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(0,0,22,12,0,0,7);ctx.fill();ctx.fillStyle=belly;ctx.beginPath();ctx.ellipse(4,6,14,5,0,0,7);ctx.fill();
   for(let i=0;i<5;i++)poly([-16+i*7,-10,-13+i*7,-16,-10+i*7,-10],dark);
@@ -2344,8 +2513,10 @@ function drawDragon(){const b=boss,cx=b.x+b.w/2,cy=b.y+b.h/2,fl=Math.sin(b.t*9),
   const m=b.mouth>0?4:0;ctx.fillStyle=body;ctx.fillRect(20,-24,18,8);ctx.fillRect(36,-21,6,4);ctx.fillStyle=dark;ctx.fillRect(22,-16+m,18,3);
   if(m){ctx.fillStyle='#ffb040';ctx.fillRect(24,-16,16,m)}
   poly([22,-24,15,-33,26,-24],horn);poly([27,-24,23,-31,31,-24],horn);ctx.fillStyle='#ffe040';ctx.fillRect(30,-22,3,2);
-  ctx.fillStyle=dark;ctx.fillRect(-12,8,6,10);ctx.fillRect(8,8,6,10);ctx.fillStyle=horn;ctx.fillRect(-12,17,7,2);ctx.fillRect(8,17,7,2);
-  poly([0,-8,10,-34-fl*14,-14,-40-fl*16,-26,-26-fl*8,-8,-4],body);ctx.fillStyle=dark;ctx.fillRect(-3,-30-fl*12,1,22);ctx.fillRect(-12,-28-fl*10,1,18);
+  const trail=b.state==='swoop'?-7:0;// legs hang from hip and knee, trailing back in a swoop
+  for(const[hx,ph]of[[-9,0],[11,1.3]]){const sw=Math.sin(b.t*3+ph)*2.2,[kx,ky,ax,ay]=ik2(hx,7,hx+2.5+sw+trail,19,7,7,-1);
+    seg(hx,7,kx,ky,6,dark);seg(kx,ky,ax,ay,4.4,dark);ctx.fillStyle=horn;for(let c=0;c<3;c++)tri(ax-2+c*2.6,ay+1,ax+c*2.6,ay+1,ax+1.4+c*2.6,ay+4)}
+  wing(0,-8,-1.2-fl*.12,27*(1+fl*.42),-2.8-fl2*.55,25*(1+fl2*.2),[-26,-26-fl2*8],[-8,-4],body,dark);
   ctx.restore()}
 
 // Weapons are painted into a small canvas in their own space (hand at the origin, pointing along +x), so an upgrade
@@ -2437,25 +2608,23 @@ function drawSlash(p){const W=WS();if(W.ranged)return;const g=slashGeom(p),k=g.k
     if(pr<.45){ctx.globalAlpha=1;ctx.fillStyle='#ffffff';circle(Math.cos(aE)*R,Math.sin(aE)*R,3);ctx.globalAlpha=.4;ctx.fillStyle=W.col;circle(Math.cos(aE)*R,Math.sin(aE)*R,7)}}
   ctx.restore()}
 function drawPlayer(){const p=P;if(state==='dead'||state==='win')return;if(p.inv>0&&Math.floor(p.inv*16)%2)return;
-  const W=WS(),moving=Math.abs(p.vx)>20;let fr='idle';if(!p.onGround)fr='jump';else if(moving||p.dashT>0)fr=RUN[Math.floor(p.run)%4];
-  const img=PSPR()[fr][p.face>0?0:1],sq=p.sq||0,sw=Math.round(18*(1-sq*.5)),sh=Math.round((img.lh||img.height)*(1+sq)),dx=Math.round(p.x+p.w/2-sw/2),dy=Math.round(p.y+p.h-sh)-(fr==='pass'||fr==='reach'?1:0);
-  const hx=Math.round(p.x+p.w/2)+p.face*(3+(p.push||0)),hy=Math.round(p.y+p.h)-7;
-  const ang=p.swAng??-2.1,front=!!p.poseFront;
-  if(p.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(p.x-1),Math.round(p.y+p.h)-1,p.w+2,2);ctx.fillRect(Math.round(p.x+1),Math.round(p.y+p.h)+1,p.w-2,1)}
+  const sq=p.sq||0,face=p.face,fx=Math.round(p.x+p.w/2),fy=Math.round(p.y+p.h);
+  if(p.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(p.x-1),fy-1,p.w+2,2);ctx.fillRect(Math.round(p.x+1),fy+1,p.w-2,1)}
   const rise=p.ride?MOUNTS[p.ride].rise:0;if(rise){drawMount(p);ctx.save();ctx.translate(0,-rise)}
-  const fx=Math.round(p.x+p.w/2),fy=Math.round(p.y+p.h);ctx.save();ctx.translate(fx,fy);ctx.rotate(p.lean||0);ctx.translate(-fx,-fy);
-  if(RUN.includes(fr)||!p.onGround){const bx=p.face>0?dx+2:dx+sw-3;// cape tail streaming behind
-    for(let i=0;i<4;i++){ctx.fillStyle=i%2?'#6a1226':'#a8213a';ctx.fillRect(bx-p.face*(3+i*3)-1,dy+12+i*2+Math.round(Math.sin(p.run*3.1-i)*1.5),3,3-(i>>1))}}
-  const tier=tiers[p.wpn]||0;
-  if(!front)drawWeapon(p.wpn,hx,hy,ang,p.face,tier);
-  ctx.drawImage(img,dx,dy,sw,sh);drawClassMark(p.cls,dx,dy,p.face);
-  {const lx=Math.round(p.x+p.w/2)-p.face*5,ly=Math.round(p.y+p.h)-10+Math.round(Math.sin((p.run||0)*3)),lit=p.oil>0;// the cracked lantern on the knight's belt
-    ctx.fillStyle='#0b0d16';ctx.fillRect(lx-2,ly-1,5,7);ctx.fillStyle='#d8b060';ctx.fillRect(lx-1,ly,3,5);ctx.fillStyle=lit?(Math.sin(time*12)>0?'#fff0b0':'#ffd060'):'#3a3020';ctx.fillRect(lx,ly+1,1,3);
-    if(lit&&BIO.dark>0)glowProps.push([lx,ly+2,30,'255,200,120'])}
+  ctx.save();ctx.translate(fx,fy);ctx.rotate(p.lean||0);ctx.scale(1-sq*.3,1+Math.max(0,sq)*.6);ctx.translate(-fx,-fy);
+  const J=knightJoints(playerPose(p)),hx=fx+face*J.hand[0],hy=fy+J.hand[1];
+  const ang=p.swAng??-2.1,front=!!p.poseFront,tier=tiers[p.wpn]||0;
+  if(!front)drawWeapon(p.wpn,hx,hy,ang,face,tier);
+  drawOutlined((px,py)=>paintKnight(px+24,py+40,face,p.cls,J,front?'body':'all'),fx-24,fy-40);
+  drawClassMark(p.cls,fx-9,Math.round(fy+J.headTop),face);
+  {const lx=fx-face*5,ly=Math.round(fy+J.hipY)-3,lit=p.oil>0;// the cracked lantern on the knight's belt, swinging on its hook
+    ctx.save();ctx.translate(lx,ly);ctx.rotate(clamp(-p.vx/400,-.5,.5)+Math.sin(time*5)*.06);
+    ctx.fillStyle='#0b0d16';ctx.fillRect(-2,0,5,7);ctx.fillStyle='#d8b060';ctx.fillRect(-1,1,3,5);ctx.fillStyle=lit?(Math.sin(time*12)>0?'#fff0b0':'#ffd060'):'#3a3020';ctx.fillRect(0,2,1,3);ctx.restore();
+    if(lit&&BIO.dark>0)glowProps.push([lx,ly+3,30,'255,200,120'])}
   if(front&&p.atkT>0&&p.trail&&p.trail.length>1){
     ctx.save();ctx.globalCompositeOperation='lighter';
-    p.trail.slice(0,-1).forEach((s,i,arr)=>{ctx.globalAlpha=.12+.3*i/arr.length;drawWeapon(p.wpn,hx,hy,s.a,p.face,tier)});ctx.restore()}
-  if(front)drawWeapon(p.wpn,hx,hy,ang,p.face,tier);
+    p.trail.slice(0,-1).forEach((s,i,arr)=>{ctx.globalAlpha=.12+.3*i/arr.length;drawWeapon(p.wpn,hx,hy,s.a,face,tier)});ctx.restore()}
+  if(front){drawWeapon(p.wpn,hx,hy,ang,face,tier);drawOutlined((px,py)=>paintKnight(px+24,py+40,face,p.cls,J,'arm'),fx-24,fy-40)}
   ctx.restore();
   if(p.atkT>0)drawSlash(p);
   if(rise)ctx.restore()}
@@ -2463,7 +2632,7 @@ function drawPlayer(){const p=P;if(state==='dead'||state==='win')return;if(p.inv
 function drawWorld(){
   drawObjects();
   for(const e of enemies)drawEnemy(e);
-  if(lis)drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,lis.t,lis.face,lis.hurt,lis.state==='hunt'?'hunt':'calm'),lis.x,lis.y);
+  if(lis)drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,lis.t,lis.face,lis.hurt,lis.state==='hunt'?'hunt':'calm',lis.x*lis.face),lis.x,lis.y);
   for(const s of pShots)if(s.kind==='arrow'){ctx.save();ctx.translate(Math.round(s.x),Math.round(s.y));ctx.rotate(Math.atan2(s.vy||0,s.vx));const l=s.big?16:12;
     ctx.fillStyle='#0b0d16';ctx.fillRect(-l,-1.5,l+4,3);ctx.fillStyle='#d8d0b8';ctx.fillRect(-l+1,-.5,l,1);ctx.fillStyle='#ffffff';tri(5,0,1,-2,1,2);ctx.fillStyle='#c0283f';ctx.fillRect(-l,-2.5,3,1);ctx.fillRect(-l,1.5,3,1);
     if(s.big){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.5;ctx.fillStyle='#ff4060';ctx.fillRect(-l-6,-2,l+10,4)}ctx.restore()}
@@ -2620,7 +2789,7 @@ function drawClassScreen(){ctx.fillStyle='rgba(5,4,8,.94)';ctx.fillRect(0,0,W,H)
     if(sel){ctx.fillStyle='rgba(192,40,63,.25)';ctx.fillRect(22,y-6,176,22);marker(26,y+2)}
     ctx.drawImage(SPRC[kk].idle[0],38,y-6,13,16);text(CLASSES[kk].name,58,y,8,sel?'#ffffff':'#c8c2b6')});
   panel(208,44,254,186);ctx.fillStyle='rgba(192,40,63,.12)';ctx.fillRect(220,190,80,6);
-  ctx.save();ctx.translate(224,104);ctx.scale(4,4);drawWeapon('greatsword',12,15,-2.2+Math.sin(time*2)*.05,1);ctx.drawImage(SPRC[k][RUN[Math.floor(time*8)%4]][0],0,0,18,22);drawClassMark(k,0,0,1,false);ctx.restore();
+  sceneKnight(224,104,4,'stride',1,0,k,'greatsword');{const J=knightJoints({mode:'run',u:time*2.1,amp:1,t:time});ctx.save();ctx.translate(224+36,104+88);ctx.scale(4,4);drawClassMark(k,-9,J.headTop,1,false);ctx.restore()}
   text(C.name,384,58,8,'#e0304a','center');let y=80;for(const l of C.desc){wrapText(l,314,y,140,'#ffe0a0');y+=24}
   text(menu.back==='pause'?'JUMP: BECOME THIS HERO   ESC: BACK':'JUMP: BEGIN   ESC: BACK',W/2,H-20,8,'rgba(232,226,214,.5)','center')}
 function drawMenuOverlay(){if(menu.screen==='class'){drawClassScreen();return}if(menu.screen==='diff')drawDiffScreen();else if(menu.screen==='settings')drawSettings();else if(menu.screen==='pause')drawPause()}
@@ -2630,7 +2799,7 @@ function draw(){
   if(scene){drawScene();return}
   if(state==='title'){drawBG();ctx.save();ctx.translate(-Math.round(cam.x),0);for(const q of parts){ctx.globalAlpha=Math.min(1,q.life);ctx.fillStyle=q.col;ctx.fillRect(Math.round(q.x),Math.round(q.y),q.size,q.size)}ctx.restore();ctx.globalAlpha=1;
     ctx.fillStyle=BIO.ground;ctx.fillRect(0,H-40,W,40);ctx.fillStyle=BIO.top;ctx.fillRect(0,H-40,W,3);
-    const fr=RUN[Math.floor(time*14)%4];ctx.save();ctx.translate(56,H-128);ctx.scale(4,4);drawWeapon(P.wpn,12,15,-2.5+Math.sin(time*16)*.1,1);ctx.restore();ctx.drawImage(PSPR()[fr][0],56,H-40-88,72,88);
+    sceneKnight(56,H-128,4,'stride',1);
     drawRays();drawBokeh();drawGrade();ctx.drawImage(vign,0,0);
     eyeSigil(310,56,64,'rgba(224,48,74,.14)',3);text('CRIMSON CREST',310,42,24,'#e0304a','center');text('THE HOLLOW BENEATH',310,74,8,'#e8e2d6','center');
     if(menu.screen==='main'){
