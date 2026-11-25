@@ -181,8 +181,14 @@ const LEGS={
  pass:["rrRRR.kaAAAk","rRR.kkaAAk","rR....kAAk","......kkkk"],
  reach:["rrRRR.kaAAAAk","rRR...kaAk.kAk","rR....kAAk..kk","......kkkk"],
  jump:["rrRRRRkaAkkAk","rrRRR.kaAAAAk","RRR....kkkkk","RR"]};
-function mkSprite(rows,flip,pal=PAL){const c=document.createElement('canvas');c.width=18;c.height=rows.length;const x=c.getContext('2d');
-  rows.forEach((row,y)=>{for(let i=0;i<18;i++){const ch=row[i];if(ch&&pal[ch]){x.fillStyle=pal[ch];x.fillRect(flip?17-i:i,y,1,1)}}});return c}
+// Scale2x: doubles a pixel-art image and fills in its diagonals with whole pixels, so curves step finer but stay hard-edged
+function scale2x(src){const w=src.width,h=src.height,s=src.getContext('2d').getImageData(0,0,w,h),d=new ImageData(w*2,h*2),a=new Uint32Array(s.data.buffer),o=new Uint32Array(d.data.buffer);
+  const at=(x,y)=>a[clamp(y,0,h-1)*w+clamp(x,0,w-1)];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const P=a[y*w+x],A=at(x,y-1),B=at(x+1,y),C=at(x-1,y),D=at(x,y+1),i=(y*2)*(w*2)+x*2;
+    o[i]=C===A&&C!==D&&A!==B?A:P;o[i+1]=A===B&&A!==C&&B!==D?B:P;o[i+w*2]=D===C&&D!==B&&C!==A?C:P;o[i+w*2+1]=B===D&&B!==A&&D!==C?D:P}
+  const c=document.createElement('canvas');c.width=w*2;c.height=h*2;c.getContext('2d').putImageData(d,0,0);c.lw=w;c.lh=h;return c}
+function mkSprite(rows,flip,pal=PAL){const c=document.createElement('canvas');c.width=18;c.height=rows.length;const x=c.getContext('2d',{willReadFrequently:true});
+  rows.forEach((row,y)=>{for(let i=0;i<18;i++){const ch=row[i];if(ch&&pal[ch]){x.fillStyle=pal[ch];x.fillRect(flip?17-i:i,y,1,1)}}});return scale2x(c)}
 const LEAN=BODY.map((r,i)=>i<12?'.'+r:r),RUN=['stride','push','pass','reach'];
 const SPR={};for(const k in LEGS){const rows=(RUN.includes(k)?LEAN:BODY).concat(LEGS[k]);SPR[k]=[mkSprite(rows,false),mkSprite(rows,true)]}
 /* ---------- classes: who you play as. Each has its own colours and its own strengths ---------- */
@@ -2102,9 +2108,19 @@ function drawProp(kind,x,y,hs){
     case'valve':P2('#5a4030',2,-4,2,4);P2('#c0283f',0,-6,6,2);P2('#ff6070',1,-6,1,1);break;
     case'cogpile':P2('#8a6a3a',0,-3,5,3);P2('#b08a4a',1,-4,3,1);P2('#3a2a1a',2,-2,1,1);P2('#b07a3a',5,-2,2,2);break;
     case'ember':glowProps.push([x+2,y-2,26,'255,110,40']);P2('#3a1a14',0,-3,5,3);P2(flick?'#ff8030':'#ffb040',1,-3,2,1);ctx.save();ctx.globalAlpha=.25;ctx.fillStyle='#ff6020';circle(x+2,y-2,5);ctx.restore();break}}
+// four grain textures per area, each a 16x16 tile at twice the detail: specks, pebbles and hairline cracks, all whole pixels
+const GRAIN={};
+function grainFor(b){let g=GRAIN[b.key];if(g)return g;g=GRAIN[b.key]=[];
+  for(let v=0;v<4;v++){const c=document.createElement('canvas');c.width=c.height=32;const x=c.getContext('2d'),r=rng(hashStr(b.key)+v*97);
+    const lite=shade(b.ground,.16),dark=shade(b.ground,-.3),deep=shade(b.ground,-.5);
+    for(let i=0;i<26;i++){x.fillStyle=r()<.55?dark:lite;x.fillRect(r()*32|0,r()*32|0,1,1)}// specks
+    for(let i=0;i<3;i++){const px=r()*29|0,py=r()*30|0;x.fillStyle=dark;x.fillRect(px,py+1,3,1);x.fillStyle=lite;x.fillRect(px,py,2,1)}// pebbles
+    if(r()<.7){let cx=r()*24|0,cy=r()*10|0;x.fillStyle=deep;for(let i=0;i<9;i++){x.fillRect(cx,cy,1,1);cx+=r()<.5?1:0;cy+=1}}// a hairline crack
+    g.push(c)}
+  return g}
 function drawTiles(){const b=BIO,x0=Math.max(0,Math.floor(cam.x/T)),x1=Math.min(L.w-1,x0+W/T+1);
   for(let ty=0;ty<L.h;ty++)for(let tx=x0;tx<=x1;tx++){const t=L.g[ty*L.w+tx];if(!t)continue;const X=tx*T,Y=ty*T,hs=hash(tx,ty);
-    if(t===1){ctx.fillStyle=b.ground;ctx.fillRect(X,Y,T,T);ctx.fillStyle=b.detail;
+    if(t===1){ctx.fillStyle=b.ground;ctx.fillRect(X,Y,T,T);if(RES>1)ctx.drawImage(grainFor(b)[hs&3],X,Y,T,T);ctx.fillStyle=b.detail;
       if(b.style==='brick'){ctx.fillRect(X,Y+7,T,1);ctx.fillRect(X,Y+15,T,1);ctx.fillRect(X+(ty&1?4:12),Y,1,7);ctx.fillRect(X+(ty&1?12:4),Y+8,1,7)}
       else if(b.style==='plate'){ctx.fillRect(X,Y,T,1);ctx.fillRect(X,Y,1,T);ctx.fillStyle='rgba(255,210,150,.22)';ctx.fillRect(X+2,Y+2,1,1);ctx.fillRect(X+13,Y+2,1,1);ctx.fillRect(X+2,Y+13,1,1);ctx.fillRect(X+13,Y+13,1,1);ctx.fillStyle='rgba(0,0,0,.12)';ctx.fillRect(X+1,Y+8,T-1,1)}
       else{ctx.fillRect(X+hs%13,Y+(hs>>4)%13,2,2);ctx.fillRect(X+(hs>>8)%14,Y+(hs>>12)%14,1,1)}
@@ -2116,6 +2132,7 @@ function drawTiles(){const b=BIO,x0=Math.max(0,Math.floor(cam.x/T)),x1=Math.min(
       if(inv){ctx.fillStyle=b.top;ctx.fillRect(X,Y+T-3,T,3);for(let i=0;i<3;i++){const rx=X+((hs>>(i*4))%15),rl=3+((hs>>(i*3))%7);ctx.fillRect(rx,Y+T,1,rl+Math.round(Math.sin(time*2+rx)))}}
       else if(up!==1){ctx.fillStyle=b.top;ctx.fillRect(X,Y,T,3);for(let i=0;i<3;i++)ctx.fillRect(X+((hs>>(i*4))%15),Y-1-((hs>>i)&1),1,2);
         ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(X,Y,T,1);ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(X,Y+3,T,1);
+        if(RES>1){ctx.fillStyle=shade(b.top,.25);for(let i=0;i<6;i++){const gx=X+((hs>>(i*3))%32)/2;ctx.fillRect(gx,Y-1.5-((hs>>(i+2))&1)*.5,.5,1.5)}ctx.fillStyle=shade(b.top,-.3);ctx.fillRect(X,Y+2.5,T,.5)}// fine grass and a hard pixel lip
         if(up===0&&hs%3===0)drawProp(BIO.props[(hs>>7)%BIO.props.length],X+2+(hs>>11)%10,Y,hs)}
       if(L.isl.has(ty*L.w+tx)&&tileAt(tx,ty+1)===0){// tapered rock underside + hanging roots
         const edge=!L.isl.has(ty*L.w+tx-1)||!L.isl.has(ty*L.w+tx+1),dp=(edge?5:11)+hs%4;ctx.fillStyle=b.ground;tri(X,Y+T-1,X+T/2,Y+T+dp,X+T,Y+T-1);
@@ -2144,17 +2161,21 @@ function drawWater(){const x0=Math.max(0,Math.floor(cam.x/T)),x1=Math.min(L.w-1,
 /* ---------- enemy models: drawn at native pixel size, outlined offscreen, then placed (and scaled for bosses) ---------- */
 const SPR_PAD=24,SPR_SIZE=96;
 const SPR_CV=document.createElement('canvas'),SIL_CV=document.createElement('canvas');
-SPR_CV.width=SPR_CV.height=SIL_CV.width=SIL_CV.height=SPR_SIZE;
-const SPR_X=SPR_CV.getContext('2d'),SIL_X=SIL_CV.getContext('2d');
-function drawOutlined(paint,x,y,scale=1,alpha=1){
-  SPR_X.clearRect(0,0,SPR_SIZE,SPR_SIZE);
-  ctx=SPR_X;paint(SPR_PAD,SPR_PAD);ctx=MAIN_CTX;
-  SIL_X.globalCompositeOperation='copy';SIL_X.drawImage(SPR_CV,0,0);
-  SIL_X.globalCompositeOperation='source-in';SIL_X.fillStyle='#07080d';SIL_X.fillRect(0,0,SPR_SIZE,SPR_SIZE);
-  const X=Math.round(x-SPR_PAD*scale),Y=Math.round(y-SPR_PAD*scale),S=SPR_SIZE*scale;
-  ctx.save();ctx.globalAlpha*=alpha;
-  for(const[ox,oy]of[[1,0],[-1,0],[0,1],[0,-1]])ctx.drawImage(SIL_CV,X+ox*scale,Y+oy*scale,S,S);
-  ctx.drawImage(SPR_CV,X,Y,S,S);ctx.restore()}
+SPR_CV.width=SPR_CV.height=SIL_CV.width=SIL_CV.height=SPR_SIZE*2;
+const SPR_X=SPR_CV.getContext('2d',{willReadFrequently:true}),SIL_X=SIL_CV.getContext('2d');
+// no soft edges: every pixel is either fully there or not there at all
+function hardPixels(x,w,h){const id=x.getImageData(0,0,w,h),d=id.data;for(let i=3;i<d.length;i+=4)d[i]=d[i]<110?0:255;x.putImageData(id,0,0)}
+function drawOutlined(paint,x,y,scale=1){
+  const sd=RES>1?2:1,N=SPR_SIZE*sd;// sprite detail: painted at twice the size when the screen has the pixels for it
+  SPR_X.setTransform(1,0,0,1,0,0);SPR_X.clearRect(0,0,N,N);SPR_X.setTransform(sd,0,0,sd,0,0);
+  ctx=SPR_X;paint(SPR_PAD,SPR_PAD);ctx=MAIN_CTX;SPR_X.setTransform(1,0,0,1,0,0);
+  hardPixels(SPR_X,N,N);
+  SIL_X.globalCompositeOperation='copy';SIL_X.drawImage(SPR_CV,0,0,N,N,0,0,N,N);
+  SIL_X.globalCompositeOperation='source-in';SIL_X.fillStyle='#07080d';SIL_X.fillRect(0,0,N,N);
+  const X=Math.round(x-SPR_PAD*scale),Y=Math.round(y-SPR_PAD*scale),S=SPR_SIZE*scale,o=scale/sd;// a one-fine-pixel outline
+  ctx.save();ctx.imageSmoothingEnabled=false;
+  for(const[ox,oy]of[[1,0],[-1,0],[0,1],[0,-1]])ctx.drawImage(SIL_CV,0,0,N,N,X+ox*o,Y+oy*o,S,S);
+  ctx.drawImage(SPR_CV,0,0,N,N,X,Y,S,S);ctx.restore()}
 // glows and threads live in world space so they are not outlined
 function drawEnemyFx(e,x,y,s=1){
   const K=KINDS[e.k],cx=x+e.w*s/2,cy=y+e.h*s/2;
@@ -2330,7 +2351,7 @@ function drawDragon(){const b=boss,cx=b.x+b.w/2,cy=b.y+b.h/2,fl=Math.sin(b.t*9),
 // Weapons are painted into a small canvas in their own space (hand at the origin, pointing along +x), so an upgrade
 // can trim and recolour only the weapon's pixels before it is rotated into the knight's hand.
 const WOX=40,WOY=32,WCVS={};// one canvas per zoom level, so a weapon drawn big (title, shop, scenes) stays sharp
-function weaponCanvas(sc){let c=WCVS[sc];if(!c){c=document.createElement('canvas');c.width=124*sc;c.height=64*sc;WCVS[sc]=c}return c}
+function weaponCanvas(sc){let c=WCVS[sc];if(!c){c=document.createElement('canvas');c.width=124*sc;c.height=64*sc;c.getContext('2d',{willReadFrequently:true});WCVS[sc]=c}return c}
 function weaponArt(kind){const O='#0b0d16';
   if(kind==='greatsword'){  ctx.fillStyle='#0b0d16';ctx.fillRect(-6,-2.5,28,5);ctx.fillRect(-1,-5,4,10);ctx.beginPath();ctx.moveTo(21,-2.5);ctx.lineTo(27,0);ctx.lineTo(21,2.5);ctx.fill();
   ctx.fillStyle='#d8b060';ctx.fillRect(-5,-1,2,2);ctx.fillStyle='#5a2c1e';ctx.fillRect(-3,-1,3,2);
@@ -2396,7 +2417,8 @@ function drawWeapon(kind,hx,hy,ang,face,tier=0){
   if(tier)weaponTrim(kind,tier,false);
   weaponArt(kind);
   if(tier)weaponTrim(kind,tier,true);
-  ctx=main;ctx.save();ctx.translate(hx,hy);ctx.scale(face,1);ctx.rotate(ang);ctx.imageSmoothingEnabled=true;ctx.drawImage(WCV,-WOX,-WOY,124,64);ctx.restore()}
+  WX.setTransform(1,0,0,1,0,0);hardPixels(WX,WCV.width,WCV.height);
+  ctx=main;ctx.save();ctx.translate(hx,hy);ctx.scale(face,1);ctx.rotate(ang);ctx.imageSmoothingEnabled=false;ctx.drawImage(WCV,-WOX,-WOY,124,64);ctx.restore()}
 function slashGeom(p){const W=WS(),k=Math.max(0,p.atkT/W.dur),pr=1-k;let a0=-1.3,a1=1.25;
   if(p.atkDir==='up'){a0=-Math.PI+.25;a1=-.25}else if(p.atkDir==='down'){a0=.25;a1=Math.PI-.25}else if(W.sweep){a0=-2.5;a1=2.2}
   // blade front races ahead in the first third, tail catches up as it fades: reads as one fast cut
@@ -2416,7 +2438,7 @@ function drawSlash(p){const W=WS();if(W.ranged)return;const g=slashGeom(p),k=g.k
   ctx.restore()}
 function drawPlayer(){const p=P;if(state==='dead'||state==='win')return;if(p.inv>0&&Math.floor(p.inv*16)%2)return;
   const W=WS(),moving=Math.abs(p.vx)>20;let fr='idle';if(!p.onGround)fr='jump';else if(moving||p.dashT>0)fr=RUN[Math.floor(p.run)%4];
-  const img=PSPR()[fr][p.face>0?0:1],sq=p.sq||0,sw=Math.round(18*(1-sq*.5)),sh=Math.round(img.height*(1+sq)),dx=Math.round(p.x+p.w/2-sw/2),dy=Math.round(p.y+p.h-sh)-(fr==='pass'||fr==='reach'?1:0);
+  const img=PSPR()[fr][p.face>0?0:1],sq=p.sq||0,sw=Math.round(18*(1-sq*.5)),sh=Math.round((img.lh||img.height)*(1+sq)),dx=Math.round(p.x+p.w/2-sw/2),dy=Math.round(p.y+p.h-sh)-(fr==='pass'||fr==='reach'?1:0);
   const hx=Math.round(p.x+p.w/2)+p.face*(3+(p.push||0)),hy=Math.round(p.y+p.h)-7;
   const ang=p.swAng??-2.1,front=!!p.poseFront;
   if(p.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(Math.round(p.x-1),Math.round(p.y+p.h)-1,p.w+2,2);ctx.fillRect(Math.round(p.x+1),Math.round(p.y+p.h)+1,p.w-2,1)}
@@ -2598,7 +2620,7 @@ function drawClassScreen(){ctx.fillStyle='rgba(5,4,8,.94)';ctx.fillRect(0,0,W,H)
     if(sel){ctx.fillStyle='rgba(192,40,63,.25)';ctx.fillRect(22,y-6,176,22);marker(26,y+2)}
     ctx.drawImage(SPRC[kk].idle[0],38,y-6,13,16);text(CLASSES[kk].name,58,y,8,sel?'#ffffff':'#c8c2b6')});
   panel(208,44,254,186);ctx.fillStyle='rgba(192,40,63,.12)';ctx.fillRect(220,190,80,6);
-  ctx.save();ctx.translate(224,104);ctx.scale(4,4);drawWeapon('greatsword',12,15,-2.2+Math.sin(time*2)*.05,1);ctx.drawImage(SPRC[k][RUN[Math.floor(time*8)%4]][0],0,0);drawClassMark(k,0,0,1,false);ctx.restore();
+  ctx.save();ctx.translate(224,104);ctx.scale(4,4);drawWeapon('greatsword',12,15,-2.2+Math.sin(time*2)*.05,1);ctx.drawImage(SPRC[k][RUN[Math.floor(time*8)%4]][0],0,0,18,22);drawClassMark(k,0,0,1,false);ctx.restore();
   text(C.name,384,58,8,'#e0304a','center');let y=80;for(const l of C.desc){wrapText(l,314,y,140,'#ffe0a0');y+=24}
   text(menu.back==='pause'?'JUMP: BECOME THIS HERO   ESC: BACK':'JUMP: BEGIN   ESC: BACK',W/2,H-20,8,'rgba(232,226,214,.5)','center')}
 function drawMenuOverlay(){if(menu.screen==='class'){drawClassScreen();return}if(menu.screen==='diff')drawDiffScreen();else if(menu.screen==='settings')drawSettings();else if(menu.screen==='pause')drawPause()}
