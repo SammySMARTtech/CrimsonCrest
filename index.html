@@ -80,6 +80,7 @@ html,body,canvas,.pad,.pad button{touch-action:none;-webkit-touch-callout:none;-
  * v16 New creatures: the Sunken Sea, the Stormwell and the Overgrowth with 7 new foes and 6 new guardians
  *     (lightning and tidal-wave attacks, 6 new sigils); 3 beasts to tame and ride (B / RIDE), which take a hit for you;
  *     4 new heroes to play as (Eclipse King, Lava Warrior, Ice Star, Silver Leaf), each with its own look and perks
+ * v21 Fix: the Silk Queen no longer gets stuck above the ceiling of her nest where she could not be hit. The Listener is a pale spider again
  * v20 The Listener is scary now: a gaunt, ribbed thing with torn ears, a bone mask and teeth; red eyes and an open jaw when it hunts
  * v19 Chunky: characters and enemies drawn with big pixels; 4 poses per stride, other motion at 6-8 frames a second
  * v18 Blocky motion: running and walking step through 8 fixed frames (6 for beasts), joints snap to the pixel grid
@@ -1097,7 +1098,7 @@ function drawListenerBoss(){const b=boss,gy=L.arenaGy*T;
   if(b.state==='burrow'&&b.st>=.4&&b.st<1.3){ctx.fillStyle=`rgba(255,64,80,${.5+.3*Math.sin(time*16)})`;for(let i=-2;i<=2;i++)ctx.fillRect(b.mark+i*6-1,gy-2-(i&1)*2,3,2);return}// cracks where it will burst out
   ctx.save();ctx.globalAlpha=b.alpha;
   if(b.onGround){ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(b.x+b.w/2,b.y+b.h+1,b.w/2,3,0,0,7);ctx.fill()}
-  drawOutlined((px,py)=>drawListenerShape(px+14,py+10,1,b.t,b.face,b.hurt,b.mood,b.x*b.face/2),b.x,b.y,2);if(b.mood==='hunt')glow(b.x+(14+b.face*18)*2,b.y+(10-10)*2,26,'255,40,40',.45);ctx.restore();
+  drawOutlined((px,py)=>drawListenerShape(px+14,py+10,1,b.t,b.face,b.hurt,b.mood,b.x*b.face/2),b.x,b.y,2);if(b.mood==='hunt')glow(b.x+(14+b.face*15)*2,b.y+(10+2)*2,22,'255,40,40',.4);ctx.restore();
   const wind={pounce:.55,howl:.6,burrow:.4}[b.state];if(wind&&b.st<wind)text('!',b.x+b.w/2,b.y-40+Math.sin(time*20)*1.5,16,'#ff4050','center');
   if(b.state==='pounce'&&b.mark!=null){ctx.fillStyle=`rgba(255,64,80,${.45+.3*Math.sin(time*14)})`;ctx.fillRect(b.mark-10,gy-2,20,2);ctx.fillRect(b.mark-1,gy-7,2,4)}
   if(b.state==='dizzy')for(let i=0;i<3;i++){const a=time*5+i*2.1;ctx.fillStyle='#ffe080';ctx.fillRect(b.x+b.w/2+14+Math.cos(a)*12,b.y-30+Math.sin(a)*4,3,3)}
@@ -1411,47 +1412,41 @@ function eyeSigil(x,y,s,col,lw=2){// the closed eye of Kel Varran: a lowered lid
 function eyeStone(x,y,r,t,n){const c=['','#80e0ff','#f0e0b0','#70b0ff'][n]||'#c0f0ff';glow(x,y,r*4,'180,230,255',.35+.15*Math.sin(t*3));
   ctx.fillStyle='#14202c';ctx.beginPath();ctx.ellipse(x,y,r*1.3,r,0,0,7);ctx.fill();ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(x,y,r,r*.7,0,0,7);ctx.fill();
   ctx.fillStyle='#0b0d16';ctx.fillRect(x-r*.6,y-.5,r*1.2,1.2);ctx.fillStyle='#ffffff';ctx.fillRect(x-r*.4,y-r*.4,1.5,1.5)}
-function drawListenerShape(x,y,s,t,face=1,hurt=0,mood='calm',mv){// v20: a gaunt, eyeless-faced hunter of sound. 'hunt': jaw open, red eyes, hackles up
+function drawListenerShape(x,y,s,t,face=1,hurt=0,mood='calm',mv){// v21: a pale, eyeless spider the size of a wolf. 'hunt': it rears, fangs open, bristles up
   t=STEP(t,8);const hunt=mood==='hunt',fl=hurt>0;
   ctx.save();ctx.translate(x,y);ctx.scale(s*face,s);
   if(hunt&&(Math.floor(t*8)*7)%5===0)ctx.translate(((Math.floor(t*8)*3)%3)-1,0);// it twitches
-  const hide=fl?'#ffffff':'#3a2e44',dark=fl?'#e8e8e8':'#221a2a',bone=fl?'#ffffff':'#d2c8b2',bsh=fl?'#dddddd':'#8a8070',
-    gum=fl?'#ffffff':'#6a1422',maw='#2a060c',eye=hunt?'#ff2a2a':'#c8d8e8',inner=fl?'#f0f0f0':'#4a1820';
+  const pale=fl?'#ffffff':'#e6e0d4',shade=fl?'#eeeeee':'#b4ab9c',dark=fl?'#dddddd':'#6e665a',far=fl?'#e4e4e4':'#8e8678',
+    red=fl?'#ffffff':'#b01c2c',maw='#3a0a12',pit='#2a2228';
   const B=(c,x,y,w,h)=>{ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))};
-  const Pg=(c,pts)=>{ctx.fillStyle=c;ctx.beginPath();pts.forEach(([a,b],i)=>i?ctx.lineTo(Math.round(a),Math.round(b)):ctx.moveTo(Math.round(a),Math.round(b)));ctx.closePath();ctx.fill()};
-  const bob=hunt?(Math.floor(t*8)%2):(Math.floor(t*3)%2);
-  // a bony tail: segments with a spur on each, swinging stiffly
-  let tx=-12,ty=-2;for(let i=0;i<6;i++){const a=Math.sin(t*(hunt?9:3)-i*.7)*(hunt?1.4:.8);tx-=3;ty+=-.6+a*.5;B(dark,tx,ty,3.5,2);B(bsh,tx+1,ty-1,1,1)}
-  B(bone,tx-2,ty,2,1);
-  // four spindly legs on joints, with bone claws
-  for(let i=0;i<4;i++){const hx=-9+i*6,g=mv===undefined?[Math.sin(t*(hunt?16:5)+i*1.6)*(hunt?1:.4),-Math.max(0,Math.sin(t*(hunt?16:5)+i*1.6))*(hunt?1.4:.4)]:gaitFoot(STEP(mv/9,4)+(i%2?.5:0)+(i>1?.22:0),4.5,2.4);
-    const col=i%2?dark:hide,[kx,ky,ax,ay]=ik2(hx,3,hx+g[0],11+g[1],4.6,4.6,i<2?1:-1);seg(hx,3,kx,ky,2.6,col);seg(kx,ky,ax,ay,1.6,col);
-    B(bone,ax,ay,1,1);B(bone,ax+1,ay+.5,2,1);B(bone,ax+2.5,ay+1,1,1)}// claws
-  const by=bob;
-  // hunched body: spine high at the shoulders, belly tucked under the ribs
-  B(hide,-13,-5+by,25,9);B(hide,-9,-8+by,18,3);B(hide,-4,-10+by,10,2);B(dark,-12,3+by,23,2);
-  for(let i=0;i<5;i++)B(bsh,-7+i*3,-3+by,1,5);// ribs show through the hide
-  // hackles: spikes along the spine that rise when it hunts
-  for(let i=0;i<6;i++){const sx=-12+i*3.6,base=i>1&&i<5?-9:-7,hh=(hunt?4:2)+(i%2)+(hunt&&Math.floor(t*8+i)%3===0?1:0);Pg(dark,[[sx,base+by],[sx+1.5,base-hh+by],[sx+3,base+by]])}
-  // neck and the long skull
-  const hy=-10+by;B(hide,8,hy+1,7,7);B(hide,11,hy-2,10,8);
-  // ears: huge and torn, cupped forward to hear you; swept back when it is calm
-  const ep=hunt?0:3;
-  Pg(dark,[[11,hy-1],[9-ep,hy-14],[11-ep,hy-12],[12-ep,hy-17],[14-ep,hy-13],[16,hy-1]]);
-  Pg(inner,[[12,hy-2],[11-ep,hy-11],[13-ep,hy-13],[15,hy-2]]);
-  Pg(hide,[[16,hy-1],[17-ep,hy-13],[19-ep,hy-11],[21-ep,hy-15],[21,hy-2]]);
-  Pg(inner,[[17,hy-2],[18-ep,hy-10],[20-ep,hy-11],[20,hy-2]]);
-  // a bone mask for a face, with deep sockets
-  B(bone,13,hy-2,9,5);B(bsh,13,hy+2,9,1);B(dark,14,hy,3,2);B(dark,19,hy,3,2);
-  if(hunt){B(eye,14,hy,3,2);B(eye,19,hy,3,2);B('#ffd0c0',15,hy,1,1);B('#ffd0c0',20,hy,1,1)}else{B(eye,15,hy+1,2,1);B(eye,20,hy+1,1,1)}
-  // the jaw: a snout of bone with teeth that drop open when it hunts
-  const open=hunt?4+(Math.floor(t*8)%2):0;
-  B(bone,21,hy+1,8,3);B(bsh,21,hy+3,8,1);
-  if(open){B(maw,21,hy+4,7,open);B(gum,21,hy+4,7,1)}
-  for(let k=0;k<4;k++)B('#efe8d8',21.5+k*1.7,hy+4,1,open?2:1);// upper teeth
-  B(hide,20,hy+4+open,8,2);B(dark,20,hy+5+open,8,1);
-  for(let k=0;k<3;k++)B('#efe8d8',22.3+k*1.9,hy+3+open,1,open?2:1);// lower teeth
-  if(hunt&&Math.floor(t*4)%3){B('rgba(220,230,240,.8)',24,hy+6+open,1,2+Math.floor(t*4)%2)}// drool
+  const rise=hunt?-2:0,by=rise+(hunt?(Math.floor(t*8)%2):(Math.floor(t*2)%2));
+  // a blocky oval: rows stepped two pixels at a time, so it stays pixel art
+  const SO=(c,cx,cy,rx,ry)=>{for(let dy=-ry;dy<=ry;dy+=1){const q=Math.round(Math.sqrt(Math.max(0,1-(dy/ry)**2))*rx/2)*2;if(q>0)B(c,cx-q,cy+dy,q*2,dy<ry?2:1)}};// rows overlap so no seams show when it is drawn big
+  // eight legs, all from the front body, on two joints each with the knees high above it; far legs first, a shade darker
+  const FEET=[-19,-10,10,19],leg=(i,farSide)=>{const hx=1+i*1.6+(farSide?1:0),hy=-4+by,ph=(i%2?.5:0)+(farSide?.5:0)+i*.13;
+    const g=mv===undefined?[0,-Math.max(0,Math.sin(t*(hunt?18:4)+i*1.9+(farSide?2:0)))*(hunt?1.8:.6)]:gaitFoot(STEP(mv/9,4)+ph,4,2.6);
+    const ax=hx+FEET[i]*(farSide?.8:1)+g[0],ay=11+g[1]-(farSide?1:0);
+    const kx=hx+(ax-hx)*.42,ky=hy-(i===0||i===3?6:8)-(hunt?2:0)+g[1]*.6;// a spider's knee rides high above the body, out toward the foot
+    seg(hx,hy,kx,ky,farSide?2:3,farSide?far:shade);seg(kx,ky,ax,ay,farSide?1.4:2,farSide?far:pale);
+    B(farSide?far:dark,kx-1,ky-1,2,2);B(dark,ax-.5,ay,1,1)};// knee knob and a dark claw tip
+  for(let i=0;i<4;i++)leg(i,true);
+  // abdomen: a fat pale sac with a red hourglass and bristles
+  const ay=-6+by+(hunt?-1:0);
+  SO(shade,-12,ay+1,10,7);SO(pale,-12,ay,10,6);B(shade,-20,ay+3,16,2);
+  for(const[dx,dy,w]of[[-2,-3,5],[-1,-2,3],[0,-1,1],[-1,0,3],[-2,1,5]])B(red,-12+dx,ay+dy,w,1);
+  for(let k=0;k<6;k++){const hx=-19+k*3,hh=(hunt?3:1)+(hunt&&Math.floor(t*8+k)%2?1:0),top=ay-6+(k===0||k===5?2:k===1||k===4?1:0);B(dark,hx,top-hh,1,hh)}// bristles stand up when it hunts
+  // the waist, the front body and a head with no eyes: four empty pits where they should be
+  B(shade,-3,ay+1,3,3);
+  SO(shade,3,-3+by,6,5);SO(pale,3,-4+by,6,4);
+  const hy=-7+by;B(pale,7,hy,6,6);B(shade,7,hy+5,6,1);
+  B(pit,8,hy+1,1,1);B(pit,10,hy,1,1);B(pit,10,hy+2,1,1);B(pit,12,hy+1,1,1);
+  for(let i=0;i<4;i++)leg(i,false);
+  // fangs: folded shut when calm, spread wide around a red mouth when it hunts
+  const op=hunt?2+(Math.floor(t*8)%2):0;
+  if(op){B(maw,11,hy+5,4,op+1);B(red,11,hy+5,4,1)}
+  B(shade,11,hy+5-(op?1:0),2,3);B(dark,12,hy+8-(op?1:0),1,2);// upper fang
+  B(shade,13,hy+5+op,2,3);B(dark,14,hy+8+op,1,2);// lower fang
+  if(hunt&&Math.floor(t*4)%3)B('rgba(220,230,240,.85)',13,hy+10+op,1,2+Math.floor(t*4)%2);// drool
   ctx.restore()}
 const PAINT={
  field:t=>{gradient('#2a1e3a','#d07850');glow(360,150,90,'255,190,120',.5);
@@ -1990,8 +1985,9 @@ function updGuard(dt){
       else if(b.shots<n&&b.st>.6+b.shots*.12){const x=b.marks[b.shots];b.shots++;
         projs.push({x,y:(ceilAt(Math.floor(x/T),L.arenaGy-1)+1)*T+4,vx:0,vy:80,g:420,r:4,life:4,col:K.lt});if(b.shots===1)sfx(300,.3,'triangle',-150,.05)}
       if(b.st>.8+n*.12)go('idle');break}
-    case'drop':b.vx=0;if(b.st<.6){b.vy=0;b.y+=(gy-230-b.y)*Math.min(1,5*dt)}else if(b.st<1.1){b.x+=(clamp(pc-b.w/2,ax,ar-b.w)-b.x)*Math.min(1,6*dt);b.mark=b.x+b.w/2}
-      else{b.vy+=2400*dt;moveBody(b,dt);if(b.onGround){land();go('idle')}}break;
+    case'drop':b.vx=0;if(b.st<.6){b.vy=0;// v21 fix: hang just under the ceiling, never above the room (she used to land on top of it and could not be reached)
+        const top=(ceilAt(Math.floor(cx/T),Math.floor((gy-8)/T))+1)*T,hy=Math.max(gy-230,top+2,2);b.y+=(hy-b.y)*Math.min(1,5*dt)}else if(b.st<1.1){b.x+=(clamp(pc-b.w/2,ax,ar-b.w)-b.x)*Math.min(1,6*dt);b.mark=b.x+b.w/2}
+      else{b.vy+=2400*dt;b.y+=b.vy*dt;if(b.y+b.h>=gy){b.y=gy-b.h;b.vy=0;b.onGround=true;land();go('idle')}}break;// a straight fall to the arena floor
     case'bolt':{const n=rage?5:3;// lightning falls where you stand, then on either side
       if(!b.marks){b.marks=[pc];for(let i=1;i<n;i++)b.marks.push(clamp(pc+(i%2?1:-1)*Math.ceil(i/2)*56,ax+12,ar-12))}
       if(b.st<.8){if(Math.random()<.5)burst(cx,b.y,'#e0f0ff',2,70,1,0)}
@@ -2007,7 +2003,7 @@ function updGuard(dt){
       if(b.st>.8){b.alpha=1;go('shoot')}break;
     case'dying':b.vx=0;shake=4;if(Math.random()<.5)burst(b.x+Math.random()*b.w,b.y+Math.random()*b.h,K.col,5,140,2);
       if(b.st>1.6){burst(cx,b.y+b.h/2,K.lt,50,240,3);defeatGuard();return}break;}
-  if(!G.fly&&b.state!=='drop'){b.vy+=1500*dt;moveBody(b,dt)}
+  if(!G.fly&&b.state!=='drop'){b.vy+=1500*dt;moveBody(b,dt);if(b.y<T&&b.state!=='enter'&&b.state!=='leap'){b.y=gy-b.h;b.vy=0;b.onGround=true}}// never stranded off the top of the arena
   if(b.state!=='dying'&&b.alpha>.5&&!(b.calm>0)&&ov(b,P))hurtPlayer(1,cx,false,true)}
 function drawGuard(){const b=boss,K=KINDS[b.k],tele=['charge','leap','spread','rain'].includes(b.state)&&b.st<.4&&Math.floor(b.st*20)%2;
   const look={k:b.k,x:b.x/b.s,w:K.w,h:K.h,t:b.t,dir:b.dir,hurt:tele?1:b.hurt,onGround:b.onGround,st:b.state==='shoot'||b.state==='spread'?2:0,state:'',boss:true};
@@ -2657,7 +2653,7 @@ function drawPlayer(){const p=P;if(state==='dead'||state==='win')return;if(p.inv
 function drawWorld(){
   drawObjects();
   for(const e of enemies)drawEnemy(e);
-  if(lis){drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,lis.t,lis.face,lis.hurt,lis.state==='hunt'?'hunt':'calm',lis.x*lis.face),lis.x,lis.y);if(lis.state==='hunt')glow(lis.x+17+lis.face*18,lis.y+12-10,16,'255,40,40',.4)}
+  if(lis){drawOutlined((px,py)=>drawListenerShape(px+17,py+12,1,lis.t,lis.face,lis.hurt,lis.state==='hunt'?'hunt':'calm',lis.x*lis.face),lis.x,lis.y);if(lis.state==='hunt')glow(lis.x+17+lis.face*15,lis.y+12+2,12,'255,40,40',.35)}
   for(const s of pShots)if(s.kind==='arrow'){ctx.save();ctx.translate(Math.round(s.x),Math.round(s.y));ctx.rotate(Math.atan2(s.vy||0,s.vx));const l=s.big?16:12;
     ctx.fillStyle='#0b0d16';ctx.fillRect(-l,-1.5,l+4,3);ctx.fillStyle='#d8d0b8';ctx.fillRect(-l+1,-.5,l,1);ctx.fillStyle='#ffffff';tri(5,0,1,-2,1,2);ctx.fillStyle='#c0283f';ctx.fillRect(-l,-2.5,3,1);ctx.fillRect(-l,1.5,3,1);
     if(s.big){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=.5;ctx.fillStyle='#ff4060';ctx.fillRect(-l-6,-2,l+10,4)}ctx.restore()}
